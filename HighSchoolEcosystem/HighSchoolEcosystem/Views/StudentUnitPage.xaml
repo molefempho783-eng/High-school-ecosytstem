@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    One learning unit: contents tree on the left, unit content on the right.
+
+    The tree lists every unit in the course, not just this one, so a student can
+    move between units without going back to the class page. Only the open unit
+    is expanded.
+
+    The tree is a FLAT list with an indent per row rather than nested layouts —
+    a CollectionView inside a ScrollView collapses on mobile, and nesting
+    BindableLayouts three deep to model unit/theme/item would hit the same
+    problem. See TocRow.Depth.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.StudentUnitPage"
+             x:DataType="viewModels:StudentUnitViewModel"
+             Title="Learning unit">
+
+    <Grid>
+        <Grid ColumnDefinitions="Auto,*">
+
+            <!-- ================= Contents ================= -->
+
+            <Border Grid.Column="0" WidthRequest="190" Padding="0"
+                    IsVisible="{Binding IsContentsVisible}"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource CardBackground}, Dark={StaticResource CardBackgroundDark}}"
+                    Stroke="{AppThemeBinding Light={StaticResource CardBorder}, Dark={StaticResource CardBorderDark}}"
+                    StrokeThickness="1" StrokeShape="Rectangle">
+                <ScrollView>
+                    <VerticalStackLayout Style="{StaticResource TocPanel}">
+
+                        <Border Style="{StaticResource WidgetInset}" Margin="8,8" Padding="8,0">
+                            <SearchBar Placeholder="Search titles, descriptions"
+                                       Text="{Binding SearchText}" />
+                        </Border>
+
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding Contents}" Spacing="0">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:TocRow">
+                                    <Grid ColumnDefinitions="Auto,Auto,*" Padding="0,7">
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnTocRowTapped" />
+                                        </Grid.GestureRecognizers>
+
+                                        <!-- Amber spine, as ARC puts against every row -->
+                                        <BoxView Grid.Column="0" Style="{StaticResource TocAccent}" />
+
+                                        <!-- Indent spacer. A bound Margin would be read as a
+                                             uniform Thickness and add vertical space too, so
+                                             the depth is expressed as a width instead. -->
+                                        <BoxView Grid.Column="1" WidthRequest="{Binding Indent}"
+                                                 Color="Transparent" BackgroundColor="Transparent" />
+
+                                        <VerticalStackLayout Grid.Column="2" Spacing="1"
+                                                             Padding="8,0,8,0">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                <Label Grid.Column="0" Text="{Binding Label}"
+                                                       Style="{StaticResource TocUnitLabel}"
+                                                       IsVisible="{Binding IsUnit}" />
+                                                <Label Grid.Column="0" Text="{Binding Label}"
+                                                       Style="{StaticResource TocThemeLabel}"
+                                                       IsVisible="{Binding IsTheme}" />
+                                                <Label Grid.Column="0" Text="{Binding Label}"
+                                                       Style="{StaticResource TocItemLabel}"
+                                                       IsVisible="{Binding IsItem}" />
+                                                <Label Grid.Column="1" Text="{Binding CompletionGlyph}"
+                                                       FontSize="12"
+                                                       TextColor="{StaticResource SuccessText}"
+                                                       VerticalOptions="Center" />
+                                            </Grid>
+                                            <Label Text="{Binding ProgressLabel}"
+                                                   Style="{StaticResource TocProgress}"
+                                                   IsVisible="{Binding HasProgress}" />
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Border>
+
+            <!-- ================= Content pane ================= -->
+
+            <RefreshView Grid.Column="1" IsRefreshing="{Binding IsRefreshing}"
+                         Command="{Binding RefreshCommand}">
+                <ScrollView Style="{StaticResource PageCanvas}">
+                    <VerticalStackLayout Padding="14" Spacing="12">
+
+                        <!-- Contents toggle, for narrow screens -->
+                        <Button Text="Contents" Style="{StaticResource BrandButtonOutline}"
+                                HorizontalOptions="Start" FontSize="12"
+                                Padding="12,6" MinimumHeightRequest="36"
+                                Command="{Binding ToggleContentsCommand}" />
+
+                        <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                        <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
+                               IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
+
+                        <Label Text="{Binding UnitTitle}" FontSize="24" FontAttributes="Bold" />
+                        <BoxView Style="{StaticResource SectionRule}" />
+
+                        <!-- The tinted intro box ARC puts at the top of a unit -->
+                        <Border Style="{StaticResource UnitIntro}" IsVisible="{Binding HasUnitDescription}">
+                            <Label Text="{Binding UnitDescription}" FontSize="14" LineHeight="1.4" />
+                        </Border>
+
+                        <VerticalStackLayout Spacing="2" HorizontalOptions="End">
+                            <Label Text="{Binding ActivityCountLabel}" FontSize="13"
+                                   FontAttributes="Bold" HorizontalTextAlignment="End"
+                                   IsVisible="{Binding HasActivityCount}" />
+                            <Label Text="{Binding TimeOnTaskLabel}" FontSize="13"
+                                   FontAttributes="Bold" HorizontalTextAlignment="End"
+                                   IsVisible="{Binding HasTimeOnTask}" />
+                        </VerticalStackLayout>
+
+                        <!-- Material in this unit -->
+                        <Border Style="{StaticResource Widget}">
+                            <VerticalStackLayout Spacing="0">
+                                <HorizontalStackLayout Margin="0,0,0,12">
+                                    <Label Text="In this unit" Style="{StaticResource WidgetTitle}" />
+                                    <Label Style="{StaticResource WidgetChevron}" />
+                                </HorizontalStackLayout>
+
+                                <FlexLayout BindableLayout.ItemsSource="{Binding UnitMaterials}"
+                                            Style="{StaticResource TileGrid}"
+                                            IsVisible="{Binding HasUnitMaterials}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="viewModels:MaterialRow">
+                                            <Border Style="{StaticResource Tile}">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnMaterialTapped" />
+                                                </Border.GestureRecognizers>
+                                                <VerticalStackLayout Spacing="0">
+                                                    <BoxView Style="{StaticResource TileAccent}"
+                                                             Color="{StaticResource BrandBright}" />
+                                                    <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                                            <Label Grid.Column="0" Text="{Binding Glyph}"
+                                                                   Style="{StaticResource TileGlyph}" />
+                                                            <Label Grid.Column="1" Text="{Binding CompletionGlyph}"
+                                                                   FontSize="14"
+                                                                   TextColor="{StaticResource SuccessText}" />
+                                                        </Grid>
+                                                        <Label Text="{Binding Title}" Style="{StaticResource TileTitle}"
+                                                               HeightRequest="36" />
+                                                        <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
+                                                    </VerticalStackLayout>
+                                                </VerticalStackLayout>
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+
+                                <Border Style="{StaticResource WidgetInset}"
+                                        IsVisible="{Binding UnitEmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                                    <Label Text="{Binding UnitEmptyMessage}" Style="{StaticResource EmptyStateText}" />
+                                </Border>
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </VerticalStackLayout>
+                </ScrollView>
+            </RefreshView>
+        </Grid>
+
+        <!--
+            Chapter reader. Overlays rather than navigating, so closing returns
+            the student exactly where they were in the tree. A sibling with a
+            higher z-order — MAUI has no position:fixed.
+        -->
+        <Grid IsVisible="{Binding IsReaderVisible}"
+              BackgroundColor="{AppThemeBinding Light={StaticResource PageBackground}, Dark={StaticResource PageBackgroundDark}}">
+            <ScrollView>
+                <VerticalStackLayout Spacing="0">
+                    <Grid BackgroundColor="{StaticResource BrandDark}" Padding="16,16"
+                          ColumnDefinitions="*,Auto">
+                        <Label Grid.Column="0" Text="{Binding ReaderTitle}" FontSize="18"
+                               FontAttributes="Bold" TextColor="{StaticResource White}"
+                               VerticalOptions="Center" />
+                        <Button Grid.Column="1" Text="Close" Command="{Binding CloseReaderCommand}"
+                                BackgroundColor="Transparent" TextColor="{StaticResource White}"
+                                BorderColor="{StaticResource White}" BorderWidth="1"
+                                FontSize="13" Padding="12,6" MinimumHeightRequest="36" />
+                    </Grid>
+                    <BoxView Style="{StaticResource NavRuleBar}" />
+
+                    <Border Style="{StaticResource Widget}" Margin="12">
+                        <Label Text="{Binding ReaderBody}" FontSize="15" LineHeight="1.5" />
+                    </Border>
+
+                    <!-- Marking complete is what moves the progress bars. -->
+                    <Border Style="{StaticResource Widget}" Margin="12,0,12,12">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <CheckBox Grid.Column="0" IsChecked="{Binding IsReaderComplete}"
+                                      VerticalOptions="Center" />
+                            <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                                <Label Text="Mark as completed" FontSize="14" />
+                                <Label Text="Only you see this. It's your own record of what you've worked through."
+                                       Style="{StaticResource RowSubtle}" />
+                            </VerticalStackLayout>
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding ToggleCompleteCommand}" />
+                            </Grid.GestureRecognizers>
+                        </Grid>
+                    </Border>
+                </VerticalStackLayout>
+            </ScrollView>
+        </Grid>
+    </Grid>
+</ContentPage>

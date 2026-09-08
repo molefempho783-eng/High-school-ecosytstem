@@ -1,0 +1,118 @@
+rules_version = '2';
+
+// Storage for course material uploads.
+//
+// ============================================================================
+// THE TWO-DOCUMENT BUDGET — read this before adding a helper
+// ============================================================================
+// Cross-service rules (firestore.get inside Storage rules) allow only TWO
+// Firestore document reads per evaluation. Exceed it and the rule doesn't
+// error usefully — it just denies, which looks exactly like a permissions
+// problem and is why uploads failed silently before.
+//
+// So these rules read ONE document: the class. That's deliberate, and it's
+// enough, because the class document is already the authority on both
+// questions that matter:
+//
+//   TeacherId  — who may write
+//   StudentIds — who may read
+//
+// Checking the user's Role on top would cost a second document and prove
+// nothing extra: nobody lands in TeacherId or StudentIds without an admin
+// putting them there, and firestore.rules guards that.
+//
+// Admins are deliberately NOT special-cased here. Adding them costs the second
+// document read on every single upload, and an admin who genuinely needs to
+// attach material can add themselves as the class's teacher — which is a
+// visible, audited act rather than a silent superpower.
+// ============================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function classDoc(classId) {
+      return firestore.get(/databases/(default)/documents/classes/$(classId)).data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // ---- course materials ------------------------------------------------
+
+    match /classes/{classId}/materials/{fileName} {
+
+      // One document read, answering both halves.
+      allow read: if isSignedIn() && (
+        classDoc(classId).TeacherId == request.auth.uid
+        || request.auth.uid in classDoc(classId).StudentIds
+      );
+
+      // create and update. Delete is separate below, because `request.resource`
+      // is null on a delete and every size or type check against it would
+      // error out and deny.
+      allow create, update: if isSignedIn()
+        && classDoc(classId).TeacherId == request.auth.uid
+        && request.resource != null
+        // 25 MB. Large enough for a scanned textbook chapter, small enough that
+        // one teacher can't run up a bandwidth bill by accident.
+        && request.resource.size < 25 * 1024 * 1024
+        // Null-guarded: some platforms' file pickers don't report a content
+        // type, and calling matches() on null denies with no explanation.
+        && request.resource.contentType != null
+        && (
+          request.resource.contentType.matches('application/pdf')
+          || request.resource.contentType.matches('image/.*')
+          || request.resource.contentType.matches('text/.*')
+          || request.resource.contentType.matches('audio/.*')
+          || request.resource.contentType.matches('video/.*')
+          || request.resource.contentType.matches('application/msword')
+          || request.resource.contentType.matches('application/vnd.*')
+          || request.resource.contentType.matches('application/zip')
+          || request.resource.contentType.matches('application/octet-stream')
+        );
+
+      allow delete: if isSignedIn()
+        && classDoc(classId).TeacherId == request.auth.uid;
+    }
+
+    // ---- student submissions ---------------------------------------------
+
+    // A student's uploaded answer file. The path carries the student's UID, so
+    // "only your own" is expressible without a second document read.
+    //
+    // Still ONE Firestore read (the class), same budget as materials above.
+    match /classes/{classId}/submissions/{assignmentId}/{studentId}/{fileName} {
+
+      // The student who wrote it, and the class's teacher who has to mark it.
+      allow read: if isSignedIn() && (
+        request.auth.uid == studentId
+        || classDoc(classId).TeacherId == request.auth.uid
+      );
+
+      // Only the student themselves, and only if they're actually in the class —
+      // the UID in the path alone would let anyone write under a class they
+      // aren't enrolled in, simply by using their own UID.
+      allow create, update: if isSignedIn()
+        && request.auth.uid == studentId
+        && request.auth.uid in classDoc(classId).StudentIds
+        && request.resource != null
+        // 25 MB, matching course material.
+        && request.resource.size < 25 * 1024 * 1024
+        && request.resource.contentType != null;
+
+      // A student may replace their own work before it's marked; the teacher
+      // may remove it. Marking state lives in Firestore, not here, so this
+      // can't check it without a second read — the app enforces that ordering.
+      allow delete: if isSignedIn() && (
+        request.auth.uid == studentId
+        || classDoc(classId).TeacherId == request.auth.uid
+      );
+    }
+
+    // Everything else stays closed.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

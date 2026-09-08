@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    The course builder for one class.
+
+    Structured as unit groups with their material nested, mirroring exactly what
+    a student sees on the class page. A teacher editing a flat list has no idea
+    what the course looks like to the person taking it — this is the same tree,
+    with edit controls on it.
+
+    Two BindableLayouts nested (groups → items) is safe; it's CollectionView
+    inside a ScrollView that collapses on mobile.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.TeacherMaterialsPage"
+             x:DataType="viewModels:TeacherMaterialsViewModel"
+             Title="Course content">
+
+    <RefreshView IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshCommand}">
+        <ScrollView Style="{StaticResource PageCanvas}">
+            <VerticalStackLayout Spacing="0">
+
+                <!-- ============ Header ============ -->
+                <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                    <Label Text="Course content" FontSize="20" FontAttributes="Bold"
+                           TextColor="{StaticResource White}" />
+                    <Label Text="{Binding ClassName}" FontSize="13"
+                           TextColor="{StaticResource White}" Opacity="0.85" />
+                    <Label Text="{Binding CourseSummary}" FontSize="12"
+                           TextColor="{StaticResource White}" Opacity="0.75"
+                           IsVisible="{Binding CourseSummary, Converter={StaticResource StringNotEmpty}}" />
+                </VerticalStackLayout>
+                <BoxView Style="{StaticResource NavRuleBar}" />
+
+                <VerticalStackLayout Padding="12" Spacing="12">
+
+                    <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+                    <Border Style="{StaticResource WidgetInset}" IsVisible="{Binding HasStatus}"
+                            BackgroundColor="{StaticResource WarningFill}">
+                        <Label Text="{Binding StatusMessage}" Style="{StaticResource EmptyStateText}" />
+                    </Border>
+
+                    <!-- ============ Actions ============ -->
+
+                    <HorizontalStackLayout Spacing="8">
+                        <Button Text="New unit" Style="{StaticResource BrandButton}"
+                                Command="{Binding StartCreateUnitCommand}" />
+                        <Button Text="Add material" Style="{StaticResource BrandButtonOutline}"
+                                Command="{Binding StartCreateCommand}" />
+                    </HorizontalStackLayout>
+
+                    <!-- ============ Unit form ============ -->
+
+                    <Border Style="{StaticResource Widget}" IsVisible="{Binding IsUnitFormVisible}">
+                        <VerticalStackLayout Spacing="10">
+                            <Label Text="{Binding UnitFormHeading}" Style="{StaticResource WidgetTitle}" />
+                            <Label Text="A unit is a chapter of the course. Students see one card per unit, with a progress bar."
+                                   Style="{StaticResource RowSubtle}" />
+
+                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                <Entry Placeholder="Title, e.g. LU 1: Introduction to Usability"
+                                       Text="{Binding NewUnitTitle}" />
+                            </Border>
+
+                            <Border Style="{StaticResource WidgetInset}" Padding="8,2">
+                                <Editor Placeholder="What this unit covers. Shown in a tinted box at the top of the unit."
+                                        Text="{Binding NewUnitDescription}" HeightRequest="110" />
+                            </Border>
+
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                <Border Grid.Column="0" Style="{StaticResource WidgetInset}" Padding="10,2">
+                                    <Entry Placeholder="No. of activities" Keyboard="Numeric"
+                                           Text="{Binding NewUnitActivities}" />
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource WidgetInset}" Padding="10,2">
+                                    <Entry Placeholder="Minutes on task" Keyboard="Numeric"
+                                           Text="{Binding NewUnitMinutes}" />
+                                </Border>
+                            </Grid>
+                            <Label Text="Both optional. Leave blank to hide them from students."
+                                   Style="{StaticResource RowSubtle}" />
+
+                            <HorizontalStackLayout Spacing="8">
+                                <Button Text="{Binding UnitSaveText}" Style="{StaticResource BrandButton}"
+                                        Command="{Binding SaveUnitCommand}" />
+                                <Button Text="Cancel" Style="{StaticResource BrandButtonOutline}"
+                                        Command="{Binding CancelUnitEditCommand}" />
+                            </HorizontalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- ============ Material form ============ -->
+
+                    <Border Style="{StaticResource Widget}" IsVisible="{Binding IsFormVisible}">
+                        <VerticalStackLayout Spacing="10">
+                            <Label Text="{Binding FormHeading}" Style="{StaticResource WidgetTitle}" />
+
+                            <Border Style="{StaticResource WidgetInset}" Padding="8,0">
+                                <Picker ItemsSource="{Binding Kinds}" SelectedItem="{Binding NewKind}"
+                                        Title="Chapter, link or file?" />
+                            </Border>
+                            <Label Text="{Binding KindHint}" Style="{StaticResource RowSubtle}" />
+
+                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                <Entry Placeholder="Title, e.g. Chapter 3 - Photosynthesis"
+                                       Text="{Binding NewTitle}" />
+                            </Border>
+
+                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                <Entry Placeholder="One line describing it (optional)"
+                                       Text="{Binding NewSummary}" />
+                            </Border>
+
+                            <BoxView Style="{StaticResource SectionRule}" />
+                            <Label Text="Where it goes" Style="{StaticResource SectionHeading}" />
+
+                            <Border Style="{StaticResource WidgetInset}" Padding="8,0">
+                                <Picker ItemsSource="{Binding UnitChoices}"
+                                        SelectedItem="{Binding SelectedUnitChoice}"
+                                        Title="Which unit?" />
+                            </Border>
+
+                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                <Entry Placeholder="Theme within the unit (optional), e.g. Theme 1: Usability"
+                                       Text="{Binding NewTheme}" />
+                            </Border>
+                            <Label Text="Items sharing a theme are grouped under it in the contents list."
+                                   Style="{StaticResource RowSubtle}" />
+
+                            <BoxView Style="{StaticResource SectionRule}" />
+
+                            <!-- Chapter -->
+                            <VerticalStackLayout Spacing="6" IsVisible="{Binding ShowsBody}">
+                                <Label Text="Chapter text" Style="{StaticResource SectionHeading}" />
+                                <Border Style="{StaticResource WidgetInset}" Padding="8,2">
+                                    <Editor Placeholder="Write the chapter here. Students read it inside the app."
+                                            Text="{Binding NewBody}" HeightRequest="260" />
+                                </Border>
+                            </VerticalStackLayout>
+
+                            <!-- Link -->
+                            <VerticalStackLayout Spacing="6" IsVisible="{Binding ShowsUrl}">
+                                <Label Text="Link" Style="{StaticResource SectionHeading}" />
+                                <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                    <Entry Placeholder="https://" Text="{Binding NewUrl}" Keyboard="Url" />
+                                </Border>
+                            </VerticalStackLayout>
+
+                            <!-- File -->
+                            <VerticalStackLayout Spacing="6" IsVisible="{Binding ShowsFilePicker}">
+                                <Label Text="File" Style="{StaticResource SectionHeading}" />
+                                <Button Text="Choose a file" Style="{StaticResource BrandButtonOutline}"
+                                        HorizontalOptions="Start" Clicked="OnChooseFileClicked" />
+                                <Border Style="{StaticResource WidgetInset}" IsVisible="{Binding HasPickedFile}"
+                                        BackgroundColor="{StaticResource SuccessFill}">
+                                    <Label Text="{Binding PickedFileLabel}" FontSize="12.5"
+                                           TextColor="{StaticResource SuccessText}" />
+                                </Border>
+                            </VerticalStackLayout>
+
+                            <HorizontalStackLayout Spacing="8">
+                                <Button Text="{Binding SaveButtonText}" Style="{StaticResource BrandButton}"
+                                        Command="{Binding SaveCommand}" />
+                                <Button Text="Cancel" Style="{StaticResource BrandButtonOutline}"
+                                        Command="{Binding CancelEditCommand}" />
+                            </HorizontalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- ============ The course ============ -->
+
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Groups}" Spacing="12">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="viewModels:CourseGroupRow">
+                                <Border Style="{StaticResource Widget}" Padding="0">
+                                    <VerticalStackLayout Spacing="0">
+
+                                        <!-- Unit header, coloured like the student's card -->
+                                        <Grid ColumnDefinitions="Auto,Auto,*" Padding="12,12"
+                                              ColumnSpacing="9">
+                                            <Grid.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherMaterialsViewModel}}, Path=ToggleGroupCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Grid.GestureRecognizers>
+
+                                            <Label Grid.Column="0" Text="{Binding ExpandGlyph}"
+                                                   FontSize="14" VerticalOptions="Center"
+                                                   TextColor="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
+                                            <BoxView Grid.Column="1" WidthRequest="4" HeightRequest="34"
+                                                     Color="{Binding BannerColor}" VerticalOptions="Center" />
+                                            <VerticalStackLayout Grid.Column="2" Spacing="1">
+                                                <Label Text="{Binding Title}" Style="{StaticResource WidgetTitle}"
+                                                       FontSize="15" />
+                                                <Label Text="{Binding MetaLine}" Style="{StaticResource RowMeta}" />
+                                            </VerticalStackLayout>
+                                        </Grid>
+
+                                        <VerticalStackLayout IsVisible="{Binding IsExpanded}" Spacing="0"
+                                                             Padding="12,0,12,12">
+                                            <BoxView Style="{StaticResource SectionRule}" />
+
+                                            <!-- Material in this unit -->
+                                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Items}"
+                                                                 Spacing="0">
+                                                <BindableLayout.ItemTemplate>
+                                                    <DataTemplate x:DataType="viewModels:EditableMaterialRow">
+                                                        <VerticalStackLayout Spacing="0">
+
+                                                            <Label Text="{Binding ThemeHeading}"
+                                                                   Style="{StaticResource SectionHeading}"
+                                                                   FontSize="13" Margin="0,8,0,4"
+                                                                   IsVisible="{Binding ShowsThemeHeading}" />
+
+                                                            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="9"
+                                                                  Padding="0,8">
+                                                                <Label Grid.Column="0" Text="{Binding PositionLabel}"
+                                                                       Style="{StaticResource RowMeta}"
+                                                                       VerticalOptions="Start" />
+                                                                <Label Grid.Column="1" Text="{Binding Glyph}"
+                                                                       Style="{StaticResource RowIcon}" />
+                                                                <VerticalStackLayout Grid.Column="2" Spacing="1">
+                                                                    <Label Text="{Binding Title}"
+                                                                           Style="{StaticResource RowTitle}" />
+                                                                    <Label Text="{Binding MetaLine}"
+                                                                           Style="{StaticResource RowMeta}" />
+
+                                                                    <HorizontalStackLayout Spacing="6" Margin="0,7,0,0">
+                                                                        <Button Text="&#x2191;" Style="{StaticResource BrandButtonOutline}"
+                                                                                FontSize="12" Padding="10,5" MinimumHeightRequest="34"
+                                                                                IsVisible="{Binding CanMoveUp}"
+                                                                                Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherMaterialsViewModel}}, Path=MoveUpCommand}"
+                                                                                CommandParameter="{Binding .}" />
+                                                                        <Button Text="&#x2193;" Style="{StaticResource BrandButtonOutline}"
+                                                                                FontSize="12" Padding="10,5" MinimumHeightRequest="34"
+                                                                                IsVisible="{Binding CanMoveDown}"
+                                                                                Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherMaterialsViewModel}}, Path=MoveDownCommand}"
+                                                                                CommandParameter="{Binding .}" />
+                                                                        <Button Text="Edit" Style="{StaticResource BrandButtonOutline}"
+                                                                                FontSize="12" Padding="10,5" MinimumHeightRequest="34"
+                                                                                Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherMaterialsViewModel}}, Path=StartEditCommand}"
+                                                                                CommandParameter="{Binding .}" />
+                                                                        <Button Text="Delete" Style="{StaticResource BrandButtonOutline}"
+                                                                                FontSize="12" Padding="10,5" MinimumHeightRequest="34"
+                                                                                Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherMaterialsViewModel}}, Path=DeleteCommand}"
+                                                                                CommandParameter="{Binding .}" />
+                                                                    </HorizontalStackLayout>
+                                                                </VerticalStackLayout>
+                                                            </Grid>
+                                                        </VerticalStackLayout>
+                                                    </DataTemplate>
+                                                </BindableLayout.ItemTemplate>
+                                            </VerticalStackLayout>
+
+                                            <Border Style="{StaticResource WidgetInset}" IsVisible="{Binding IsEmpty}">
+                                                <Label Text="Nothing in this unit yet."
+                                                       Style="{StaticResource EmptyStateText}" />
+                                            </Border>
+
+                                            <!-- Per-unit actions. Adding from here pre-selects
+                                                 the unit, which is the whole point. -->
+                                            <HorizontalStackLayout Spacing="6" Margin="0,12,0,0">
+                                                <Button Text="Add to this unit" Style="{StaticResource BrandButtonOutline}"
+                                                        FontSize="12" Padding="12,6" MinimumHeightRequest="36"
+                                                        Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherMaterialsViewModel}}, Path=AddToGroupCommand}"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Text="Edit unit" Style="{StaticResource BrandButtonOutline}"
+                                                        FontSize="12" Padding="12,6" MinimumHeightRequest="36"
+                                                        IsVisible="{Binding IsRealUnit}"
+                                                        Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherMaterialsViewModel}}, Path=StartEditUnitCommand}"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Text="Delete unit" Style="{StaticResource BrandButtonOutline}"
+                                                        FontSize="12" Padding="12,6" MinimumHeightRequest="36"
+                                                        IsVisible="{Binding IsRealUnit}"
+                                                        Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherMaterialsViewModel}}, Path=DeleteUnitCommand}"
+                                                        CommandParameter="{Binding .}" />
+                                            </HorizontalStackLayout>
+
+                                        </VerticalStackLayout>
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+
+                    <Border Style="{StaticResource Widget}"
+                            IsVisible="{Binding EmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Build your course" Style="{StaticResource WidgetTitle}" />
+                            <Label Text="{Binding EmptyMessage}" Style="{StaticResource RowSubtle}" />
+                            <Button Text="Create the first unit" Style="{StaticResource BrandButton}"
+                                    HorizontalOptions="Start"
+                                    Command="{Binding StartCreateUnitCommand}" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </RefreshView>
+</ContentPage>

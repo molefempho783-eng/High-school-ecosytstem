@@ -1,0 +1,361 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    One class, as its teacher manages it.
+
+    Every section is a widget, matching the rest of the app. The two lists use
+    fixed-height CollectionViews rather than BindableLayout because both can run
+    to hundreds of rows and need virtualisation — a bounded CollectionView
+    inside a ScrollView is fine; it's an unbounded one that collapses.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.TeacherClassDetailPage"
+             x:DataType="viewModels:TeacherClassDetailViewModel"
+             Title="Class">
+    <ScrollView Style="{StaticResource PageCanvas}">
+        <VerticalStackLayout Spacing="0">
+
+            <!-- ============ Header ============ -->
+            <Grid Style="{StaticResource CourseBanner}" BackgroundColor="{StaticResource BrandDark}">
+                <VerticalStackLayout VerticalOptions="Center" Spacing="3">
+                    <Label Text="{Binding ClassName}" Style="{StaticResource CourseBannerTitle}" />
+                    <Label Text="{Binding EnrolmentSummary}" FontSize="12"
+                           TextColor="{StaticResource White}" Opacity="0.85" />
+                </VerticalStackLayout>
+            </Grid>
+            <BoxView Style="{StaticResource NavRuleBar}" />
+
+            <VerticalStackLayout Padding="12" Spacing="12">
+
+                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+                <Border Style="{StaticResource WidgetInset}"
+                        BackgroundColor="{StaticResource WarningFill}"
+                        IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}">
+                    <Label Text="{Binding StatusMessage}" Style="{StaticResource EmptyStateText}" />
+                </Border>
+
+                <!-- ============ Course content ============ -->
+
+                <Border Style="{StaticResource Widget}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnMaterialsClicked" />
+                        </Grid.GestureRecognizers>
+                        <VerticalStackLayout Grid.Column="0" Spacing="1">
+                            <Label Text="Course content" Style="{StaticResource ToolRowTitle}" FontSize="16" />
+                            <Label Text="Build units, write chapters, add links and upload files. This is what students study from."
+                                   Style="{StaticResource RowSubtle}" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="1" Style="{StaticResource ToolRowChevron}" />
+                    </Grid>
+                </Border>
+
+                <!-- ============ Class notices ============ -->
+
+                <Border Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,4">
+                            <Label Text="Class notices" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+                        <Label Text="Posted to this class only. Students and their parents see these in their announcements feed."
+                               Style="{StaticResource RowSubtle}" Margin="0,0,0,10" />
+
+                        <Button Text="New notice" Style="{StaticResource BrandButtonOutline}"
+                                HorizontalOptions="Start" FontSize="12"
+                                Padding="12,6" MinimumHeightRequest="36" Margin="0,0,0,10"
+                                Command="{Binding StartCreateAnnouncementCommand}" />
+
+                        <Border Style="{StaticResource WidgetInset}" Margin="0,0,0,10"
+                                IsVisible="{Binding IsAnnouncementFormVisible}">
+                            <VerticalStackLayout Spacing="9">
+                                <Label Text="{Binding AnnouncementFormHeading}"
+                                       Style="{StaticResource SectionHeading}" />
+                                <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                    <Entry Placeholder="Title" Text="{Binding NewAnnouncementTitle}" />
+                                </Border>
+                                <Border Style="{StaticResource WidgetInset}" Padding="8,2">
+                                    <Editor Placeholder="What do you want to tell the class?"
+                                            Text="{Binding NewAnnouncementBody}" HeightRequest="110" />
+                                </Border>
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding NewAnnouncementPinned}" />
+                                    <Label Grid.Column="1" Text="Pin to the top"
+                                           VerticalOptions="Center" Style="{StaticResource RowSubtle}" />
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding NewAnnouncementExpires}" />
+                                    <Label Grid.Column="1" Text="Remove it on a date"
+                                           VerticalOptions="Center" Style="{StaticResource RowSubtle}" />
+                                </Grid>
+                                <Border Style="{StaticResource WidgetInset}" Padding="8,0"
+                                        IsVisible="{Binding NewAnnouncementExpires}">
+                                    <DatePicker Date="{Binding NewAnnouncementExpiryDate}" />
+                                </Border>
+                                <Label Text="Readers stop seeing it after this date. You still will, so you can extend it."
+                                       Style="{StaticResource RowSubtle}"
+                                       IsVisible="{Binding NewAnnouncementExpires}" />
+
+                                <HorizontalStackLayout Spacing="8">
+                                    <Button Text="{Binding AnnouncementSaveText}"
+                                            Style="{StaticResource BrandButton}"
+                                            FontSize="13" Padding="14,7" MinimumHeightRequest="38"
+                                            Command="{Binding SaveAnnouncementCommand}" />
+                                    <Button Text="Cancel" Style="{StaticResource BrandButtonOutline}"
+                                            FontSize="13" Padding="14,7" MinimumHeightRequest="38"
+                                            Command="{Binding CancelAnnouncementEditCommand}" />
+                                </HorizontalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Grid.Column="0" Text="Posted" Style="{StaticResource SectionHeading}" />
+                            <Border Grid.Column="1" Style="{StaticResource CountBadge}">
+                                <Label Text="{Binding AnnouncementsCount}"
+                                       Style="{StaticResource CountBadgeText}" />
+                            </Border>
+                        </Grid>
+                        <BoxView Style="{StaticResource SectionRule}" />
+
+                        <FlexLayout BindableLayout.ItemsSource="{Binding Announcements}"
+                                    Style="{StaticResource TileGrid}"
+                                    IsVisible="{Binding HasAnnouncements}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:AnnouncementRow">
+                                    <Border Style="{StaticResource TileWide}"
+                                            Opacity="{Binding RowOpacity}">
+                                        <VerticalStackLayout Spacing="0">
+                                            <BoxView Style="{StaticResource TileAccent}"
+                                                     Color="{StaticResource BrandBright}" />
+                                            <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <Label Grid.Column="0" Text="&#x1F4E2;"
+                                                           Style="{StaticResource TileGlyph}" />
+                                                    <HorizontalStackLayout Grid.Column="1" Spacing="5">
+                                                        <Border Style="{StaticResource Chip}" Margin="0"
+                                                                IsVisible="{Binding IsExpired}">
+                                                            <Label Text="Expired" Style="{StaticResource ChipText}" />
+                                                        </Border>
+                                                        <Border Style="{StaticResource Chip}" Margin="0"
+                                                                IsVisible="{Binding IsPinned}">
+                                                            <Label Text="Pinned" Style="{StaticResource ChipText}" />
+                                                        </Border>
+                                                    </HorizontalStackLayout>
+                                                </Grid>
+                                                <Label Text="{Binding Title}" Style="{StaticResource TileTitle}"
+                                                       FontAttributes="Bold" HeightRequest="36" />
+                                                <Label Text="{Binding Body}" Style="{StaticResource TileSubtle}" />
+                                                <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
+
+                                                <HorizontalStackLayout Spacing="6" Margin="0,6,0,0">
+                                                    <Button Text="Edit" Style="{StaticResource BrandButtonOutline}"
+                                                            FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                                            Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherClassDetailViewModel}}, Path=StartEditAnnouncementCommand}"
+                                                            CommandParameter="{Binding .}" />
+                                                    <Button Text="Delete" Style="{StaticResource BrandButtonOutline}"
+                                                            FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                                            Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherClassDetailViewModel}}, Path=DeleteAnnouncementCommand}"
+                                                            CommandParameter="{Binding .}" />
+                                                </HorizontalStackLayout>
+                                            </VerticalStackLayout>
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </FlexLayout>
+
+                        <Border Style="{StaticResource WidgetInset}"
+                                IsVisible="{Binding AnnouncementsEmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                            <Label Text="{Binding AnnouncementsEmptyMessage}"
+                                   Style="{StaticResource EmptyStateText}" />
+                        </Border>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Assignments ============ -->
+
+                <Border Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,4">
+                            <Label Text="Assignments and assessments" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+                        <Label Text="Homework and assignments are handed in. Tests and exams show as dates only."
+                               Style="{StaticResource RowSubtle}" Margin="0,0,0,12" />
+
+                        <Label Text="New" Style="{StaticResource SectionHeading}" />
+                        <BoxView Style="{StaticResource SectionRule}" />
+
+                        <VerticalStackLayout Spacing="9">
+                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                <Entry Placeholder="Title" Text="{Binding NewTitle}" />
+                            </Border>
+                            <Border Style="{StaticResource WidgetInset}" Padding="8,2">
+                                <Editor Placeholder="Instructions (optional)"
+                                        Text="{Binding NewDescription}" HeightRequest="90" />
+                            </Border>
+                            <Border Style="{StaticResource WidgetInset}" Padding="8,0">
+                                <Picker ItemsSource="{Binding AssignmentKinds}"
+                                        SelectedItem="{Binding NewKind}" Title="Kind" />
+                            </Border>
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                <Border Grid.Column="0" Style="{StaticResource WidgetInset}" Padding="8,0">
+                                    <DatePicker Date="{Binding NewDueDate}" />
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource WidgetInset}" Padding="8,0">
+                                    <TimePicker Time="{Binding NewDueTime}" />
+                                </Border>
+                            </Grid>
+                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                <Entry Placeholder="Points" Keyboard="Numeric" Text="{Binding NewPoints}" />
+                            </Border>
+
+                            <!-- How students hand it in. "Multiple choice
+                                 questions" is the one option where Add does not
+                                 finish the job: it saves the paper and goes
+                                 straight on to the question editor. -->
+                            <Border Style="{StaticResource WidgetInset}" Padding="8,0">
+                                <Picker ItemsSource="{Binding SubmissionModes}"
+                                        SelectedItem="{Binding NewSubmissionMode}"
+                                        Title="How do they hand it in?" />
+                            </Border>
+                            <Label Text="Tapping Add will open the question editor so you can set the questions and the answer key."
+                                   Style="{StaticResource RowSubtle}"
+                                   IsVisible="{Binding IsMultipleChoice}" />
+                            <Button Text="Add" Style="{StaticResource BrandButton}"
+                                    HorizontalOptions="Start" Command="{Binding AddAssignmentCommand}" />
+                        </VerticalStackLayout>
+
+                        <!-- The orange badge counts everything waiting on a
+                             person across the whole class, so a teacher
+                             scrolling past knows there is marking below without
+                             reading every row. -->
+                        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8" Margin="0,16,0,0">
+                            <Label Grid.Column="0" Text="Set" Style="{StaticResource SectionHeading}" />
+                            <Border Grid.Column="1" Style="{StaticResource CountBadge}"
+                                    IsVisible="{Binding HasWorkToMark}">
+                                <Label Text="{Binding NeedsMarkingTotalLabel}"
+                                       Style="{StaticResource CountBadgeText}" />
+                            </Border>
+                            <Label Grid.Column="2" Text="to mark" Style="{StaticResource RowMeta}"
+                                   VerticalOptions="Center"
+                                   IsVisible="{Binding HasWorkToMark}" />
+                        </Grid>
+                        <BoxView Style="{StaticResource SectionRule}" />
+                        <Label Text="Tap one to mark what came back, or to set its questions and answer key."
+                               Style="{StaticResource RowSubtle}" Margin="0,0,0,8" />
+
+                        <CollectionView ItemsSource="{Binding Assignments}" HeightRequest="260"
+                                        SelectionMode="Single" SelectionChanged="OnAssignmentSelected">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:AssignmentRow">
+                                    <Grid Padding="0,10" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="9">
+                                        <Label Grid.Column="0" Text="&#x1F5CE;" Style="{StaticResource RowIcon}" />
+                                        <VerticalStackLayout Grid.Column="1" Spacing="1">
+                                            <Label Text="{Binding Title}" Style="{StaticResource RowTitle}" />
+                                            <Label Text="{Binding Subtitle}" Style="{StaticResource RowMeta}" />
+                                        </VerticalStackLayout>
+
+                                        <!-- How many of this assignment's
+                                             submissions still need a person.
+                                             Hidden at zero: an empty circle
+                                             reads as "none marked" rather than
+                                             "nothing to mark". -->
+                                        <Border Grid.Column="2" Style="{StaticResource CountBadge}"
+                                                IsVisible="{Binding HasWorkToMark}"
+                                                SemanticProperties.Description="{Binding NeedsMarkingDescription}">
+                                            <Label Text="{Binding NeedsMarkingLabel}"
+                                                   Style="{StaticResource CountBadgeText}" />
+                                        </Border>
+
+                                        <Button Grid.Column="3" Text="Remove"
+                                                Style="{StaticResource BrandButtonOutline}"
+                                                FontSize="11" Padding="10,5" MinimumHeightRequest="34"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherClassDetailViewModel}}, Path=DeleteAssignmentCommand}"
+                                                CommandParameter="{Binding .}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                            <CollectionView.EmptyView>
+                                <Label Text="Nothing set yet." Style="{StaticResource EmptyStateText}"
+                                       Padding="10" />
+                            </CollectionView.EmptyView>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Students ============ -->
+
+                <Border Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,4">
+                            <Label Text="Students" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+                        <Label Text="Search, tick, then save. Ticks are kept while you keep searching."
+                               Style="{StaticResource RowSubtle}" Margin="0,0,0,10" />
+
+                        <Border Style="{StaticResource WidgetInset}" Padding="8,0" Margin="0,0,0,8">
+                            <SearchBar Placeholder="Search by name or email"
+                                       Text="{Binding StudentSearch}" />
+                        </Border>
+
+                        <Label Text="{Binding EnrolmentSummary}" Style="{StaticResource RowMeta}"
+                               Margin="0,0,0,8" />
+
+                        <CollectionView ItemsSource="{Binding Students}" HeightRequest="260">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:StudentEnrolment">
+                                    <Grid Padding="0,9" ColumnDefinitions="Auto,*">
+                                        <CheckBox Grid.Column="0" IsChecked="{Binding IsEnrolled}" />
+                                        <VerticalStackLayout Grid.Column="1" Spacing="1"
+                                                             VerticalOptions="Center">
+                                            <Label Text="{Binding Name}" FontSize="14" />
+                                            <Label Text="{Binding Email}" Style="{StaticResource RowSubtle}" />
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                            <CollectionView.EmptyView>
+                                <Label Text="No students match that search."
+                                       Style="{StaticResource EmptyStateText}" Padding="10" />
+                            </CollectionView.EmptyView>
+                        </CollectionView>
+
+                        <Button Text="Save enrolment" Style="{StaticResource BrandButton}"
+                                HorizontalOptions="Start" Margin="0,10,0,0"
+                                Command="{Binding SaveEnrolmentCommand}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Class details ============ -->
+
+                <Border Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,12">
+                            <Label Text="Class details" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+
+                        <VerticalStackLayout Spacing="9">
+                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                <Entry Placeholder="Class name" Text="{Binding EditName}" />
+                            </Border>
+                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                <Entry Placeholder="Subject" Text="{Binding EditSubject}" />
+                            </Border>
+                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                <Entry Placeholder="Room" Text="{Binding EditRoom}" />
+                            </Border>
+                            <Button Text="Save details" Style="{StaticResource BrandButtonOutline}"
+                                    HorizontalOptions="Start" Command="{Binding SaveDetailsCommand}" />
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

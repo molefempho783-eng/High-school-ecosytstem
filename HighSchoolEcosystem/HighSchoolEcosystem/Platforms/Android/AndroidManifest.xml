@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+	<!-- usesCleartextTraffic is required to reach the Firebase emulators over
+	     plain http at 10.0.2.2 (Android blocks cleartext by default on API 28+).
+	     Production traffic goes to https://*.googleapis.com regardless. If you
+	     want this locked down for release builds, replace it with a
+	     networkSecurityConfig that permits cleartext only for 10.0.2.2. -->
+	<application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true" android:usesCleartextTraffic="true"></application>
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+	<uses-permission android:name="android.permission.INTERNET" />
+</manifest>

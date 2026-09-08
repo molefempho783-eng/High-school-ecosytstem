@@ -1,0 +1,511 @@
+rules_version = '2';
+
+// This Firebase project serves exactly one school — there is no tenant/school
+// switching at runtime. Each client gets their own Firebase project (and
+// therefore their own database, own rules deployment, own branding in
+// Configuration/appsettings.json). Collections are flat at the database root.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- helpers -----------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isMember() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // NOTE ON CASING: FirestoreValueConverter (the C# client's REST
+    // serializer) writes field names as the C# property name, verbatim —
+    // i.e. PascalCase, not camelCase. Every field reference below must match
+    // the C# model's property names exactly (Models/UserProfile.cs etc.),
+    // or these rules will silently read the wrong (missing) field.
+    function role() {
+      return userDoc().data.Role;
+    }
+
+    // Additional roles held alongside the primary one. Absent on documents
+    // written before multi-role support, hence the default.
+    function extraRoles() {
+      return userDoc().data.get('Roles', []);
+    }
+
+    // A user holds a role if it's their primary role OR appears in Roles.
+    // Every get() here targets the same /users/{uid} path, which Firestore
+    // caches per request — so the whole helper family costs one document read
+    // no matter how many times it's called.
+    //
+    // Role values are written as-is from the C# `Role` enum (Role.ToString()),
+    // which is PascalCase — keep these literals in sync with Models/Role.cs.
+    function hasRole(r) {
+      return isMember() && (role() == r || r in extraRoles());
+    }
+
+    function isAdmin() { return hasRole('Admin'); }
+    function isTeacher() { return hasRole('Teacher'); }
+    function isStudent() { return hasRole('Student'); }
+    function isParent() { return hasRole('Parent'); }
+    function isVisitor() { return hasRole('Visitor'); }
+    function isCoach() { return hasRole('Coach'); }
+
+    // Additive role: writes for the school newspaper and nothing else. Held
+    // alongside Student or Teacher, so it grants no entitlements of its own
+    // beyond the newspaper.
+    function isJournalist() { return hasRole('Journalist'); }
+
+    // Everyone with a genuine stake in the school's day-to-day data. Visitors
+    // are deliberately excluded — they only get the public surface. Note a
+    // Visitor who ALSO holds Student or Teacher does qualify, which is correct:
+    // the wider entitlement wins.
+    function isSchoolCommunity() {
+      return isStudent() || isTeacher() || isParent() || isAdmin() || isCoach();
+    }
+
+    // Staff who can publish school-wide content. Journalist is deliberately
+    // NOT here — a student journalist must not gain school-wide announcement
+    // rights just by joining the newspaper.
+    function isStaff() {
+      return isTeacher() || isAdmin() || isCoach();
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ---- roster / invites ------------------------------------------------
+    // The signed-in user's email, lower-cased, used as the invite document ID.
+
+    function authEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function hasInvite() {
+      return isSignedIn() && request.auth.token.email != null &&
+        exists(/databases/$(database)/documents/invites/$(authEmail()));
+    }
+
+    function invite() {
+      return get(/databases/$(database)/documents/invites/$(authEmail())).data;
+    }
+
+    function emailVerified() {
+      return isSignedIn() && request.auth.token.get('email_verified', false) == true;
+    }
+
+    // Roles that grant access to other people's data, so claiming one has to be
+    // backed by proof the user actually controls the rostered mailbox.
+    // Firebase lets anyone register any unclaimed address WITHOUT verifying it,
+    // so without this check a stranger who guessed a rostered address (say
+    // principal@school.org) could register it first and inherit that role.
+    function isPrivilegedRole(r) {
+      return r == 'Admin' || r == 'Teacher' || r == 'Parent' || r == 'Coach' || r == 'Journalist';
+    }
+
+    // Same test over a list of role names. Journalist counts: publishing to the
+    // school newspaper under someone else's rostered identity is exactly the
+    // kind of thing email verification is here to stop.
+    function listHasPrivilegedRole(names) {
+      return 'Admin' in names || 'Teacher' in names || 'Parent' in names
+          || 'Coach' in names || 'Journalist' in names;
+    }
+
+    function isLinkedParent(studentId) {
+      return isParent() &&
+        studentId in userDoc().data.LinkedStudentIds;
+    }
+
+    function classDoc(classId) {
+      return get(/databases/$(database)/documents/classes/$(classId)).data;
+    }
+
+    // For use where classId comes from the path and the class already exists —
+    // i.e. subcollection rules and updates, never `create` (a get() on a
+    // document that doesn't exist yet errors out and denies).
+    function isClassTeacher(classId) {
+      return isTeacher() && classDoc(classId).TeacherId == request.auth.uid;
+    }
+
+    function isClassStudent(classId) {
+      return isStudent() && request.auth.uid in classDoc(classId).StudentIds;
+    }
+
+    // True when this parent is linked to at least one student in the class.
+    //
+    // Needed because isLinkedParent() takes a studentId, and paths like
+    // /classes/{id}/assignments don't have one — but a parent still has to read
+    // them, or their child's grade shows with no assignment title or due date
+    // attached to it.
+    function isParentOfClassMember(classId) {
+      return isParent() &&
+        classDoc(classId).StudentIds.hasAny(userDoc().data.LinkedStudentIds);
+    }
+
+    // ---- school-wide config (branding fallback; app mainly reads this from
+    // appsettings.json, but a Firestore copy lets admins tweak it without a
+    // new app build) -----------------------------------------------------
+    // NOTE: a single path segment (e.g. `/config`) addresses a *collection*
+    // in Firestore, not a document — `match` rules with `allow` blocks must
+    // point at a document (an even number of path segments). Hence /meta/config.
+
+    match /meta/config {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---- users ----------------------------------------------------------
+
+    // The school's roster. Admins add an entry per person ahead of time;
+    // a user may read their own entry (the app needs it to build their profile)
+    // but nobody else's, and only admins can write.
+    match /invites/{inviteEmail} {
+      allow read: if isAdmin() ||
+        (isSignedIn() && request.auth.token.email != null && inviteEmail == authEmail());
+      allow write: if isAdmin();
+    }
+
+    // Privilege boundary. The client bootstraps its own profile document on
+    // first sign-in (UserProfileService), so `create` has to be self-service —
+    // but a user must NOT be able to hand themselves a privileged role, or
+    // grant themselves access to another student's data as a "parent". So a
+    // self-created profile must either match this user's roster entry exactly,
+    // or — when they aren't on the roster — be a bare Student account.
+    match /users/{uid} {
+      // Staff can read the directory: a teacher building a class roster needs
+      // student names, and a coach needs them for team rosters. Writes stay
+      // admin-only, so this grants visibility, not control.
+      // isLinkedParent so a parent can resolve their own children's names —
+      // without it the parent dashboard can only show a UID. It grants sight of
+      // exactly the students already linked to them by an admin, nobody else.
+      allow read: if isSelf(uid) || isAdmin() || isStaff() || isLinkedParent(uid);
+
+      allow create: if isAdmin() ||
+        (isSelf(uid) && (createFromInvite() || createAsDefaultStudent()));
+
+      // A user may edit their own profile (display name, etc.) but never their
+      // own role or entitlements — those stay admin-only after creation.
+      allow update: if isAdmin() || (
+        isSelf(uid)
+        && request.resource.data.Role == resource.data.Role
+        && request.resource.data.get('Roles', []) == resource.data.get('Roles', [])
+        && request.resource.data.get('ClassIds', []) == resource.data.get('ClassIds', [])
+        && request.resource.data.get('LinkedStudentIds', []) == resource.data.get('LinkedStudentIds', [])
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // A rostered user's profile must match their invite exactly — and if that
+    // invite grants a privileged role, their email must be verified first.
+    // A rostered Student can sign up and start immediately: the role grants no
+    // access to anyone else's data, so the extra friction isn't worth it.
+    function createFromInvite() {
+      return hasInvite()
+        && request.resource.data.Role == invite().Role
+        // Roles must match the roster exactly too. Without this a user could
+        // self-assign Roles: ['Admin'] on top of a Student primary role and
+        // walk straight through every isAdmin() check.
+        && request.resource.data.get('Roles', []) == invite().get('Roles', [])
+        && request.resource.data.get('ClassIds', []) == invite().get('ClassIds', [])
+        && request.resource.data.get('LinkedStudentIds', []) == invite().get('LinkedStudentIds', [])
+        && (emailVerified()
+            || !(isPrivilegedRole(invite().Role) || listHasPrivilegedRole(invite().get('Roles', []))));
+    }
+
+    function createAsDefaultStudent() {
+      return !hasInvite()
+        && request.resource.data.Role == 'Student'
+        && request.resource.data.get('Roles', []).size() == 0
+        && request.resource.data.get('ClassIds', []).size() == 0
+        && request.resource.data.get('LinkedStudentIds', []).size() == 0;
+    }
+
+    // ---- classes, assignments, submissions -------------------------------
+
+    // Class documents are readable by the whole school community rather than
+    // only their own teacher/students. Two reasons: a teacher has to be able to
+    // LIST /classes to find their own (a per-document get()-based rule fails the
+    // whole query as soon as one document is denied), and parents need to see
+    // their child's classes. Names, subjects and rosters are directory-level
+    // information within a school; grades and submissions are not, and stay
+    // locked down below.
+    match /classes/{classId} {
+      allow read: if isSchoolCommunity();
+
+      // Create is separate: isClassTeacher() get()s a document that doesn't
+      // exist yet. A teacher may only create a class owned by themselves.
+      allow create: if isAdmin() ||
+        (isTeacher() && request.resource.data.TeacherId == request.auth.uid);
+
+      allow update, delete: if isAdmin() || isClassTeacher(classId);
+
+      match /assignments/{assignmentId} {
+        allow read: if isAdmin() || isClassTeacher(classId) || isClassStudent(classId) ||
+          isParentOfClassMember(classId);
+        allow write: if isAdmin() || isClassTeacher(classId);
+
+        // Multiple-choice questions. Students in the class can read these —
+        // they have to, to answer them — so these documents carry the question
+        // text and options ONLY.
+        match /questions/{questionId} {
+          allow read: if isAdmin() || isClassTeacher(classId) || isClassStudent(classId);
+          allow write: if isAdmin() || isClassTeacher(classId);
+        }
+
+        // The answer key, split out from the question for exactly one reason:
+        // so students cannot read it. Same document ID as the question it
+        // answers. Never fold CorrectIndex back into /questions.
+        match /answerKeys/{questionId} {
+          allow read, write: if isAdmin() || isClassTeacher(classId);
+        }
+
+        // NOTE: every student branch below requires isClassStudent(classId) as
+        // well as isSelf(studentId). Without it any signed-in user — a visitor,
+        // or a student in a different class — could write a submission document
+        // under any assignment in the school, simply by using their own UID as
+        // the document ID.
+        match /submissions/{studentId} {
+          allow read: if isAdmin() || isClassTeacher(classId) ||
+            (isSelf(studentId) && isClassStudent(classId)) ||
+            isLinkedParent(studentId);
+
+          // Students submit their own work — text, answers and a file — but
+          // never any field that decides or records marking.
+          //
+          // Grade and Feedback are the obvious ones. The rest matter too:
+          //
+          //   TeacherMarkedAt  — setting it would hide the work from the
+          //                      teacher's "needs marking" queue.
+          //   AutoMarkedAt     — the Cloud Function's loop guard skips anything
+          //                      where AutoMarkedAt >= SubmittedAt, so a future
+          //                      value would permanently block auto-marking.
+          //   AutoScore/Max    — the function's own record of what it awarded.
+          //
+          // The function itself runs with Admin SDK credentials and bypasses
+          // these rules, so protecting the fields costs it nothing.
+          allow create: if isAdmin() || isClassTeacher(classId) || (
+            isSelf(studentId)
+            && isClassStudent(classId)
+            && !('Grade' in request.resource.data)
+            && !('Feedback' in request.resource.data)
+            && !('TeacherMarkedAt' in request.resource.data)
+            && !('AutoMarkedAt' in request.resource.data)
+            && !('AutoScore' in request.resource.data)
+            && !('AutoScoreMax' in request.resource.data)
+          );
+
+          allow update: if isAdmin() || isClassTeacher(classId) || (
+            isSelf(studentId)
+            && isClassStudent(classId)
+            && request.resource.data.get('Grade', null) == resource.data.get('Grade', null)
+            && request.resource.data.get('Feedback', null) == resource.data.get('Feedback', null)
+            && request.resource.data.get('TeacherMarkedAt', null) == resource.data.get('TeacherMarkedAt', null)
+            && request.resource.data.get('AutoMarkedAt', null) == resource.data.get('AutoMarkedAt', null)
+            && request.resource.data.get('AutoScore', null) == resource.data.get('AutoScore', null)
+            && request.resource.data.get('AutoScoreMax', null) == resource.data.get('AutoScoreMax', null)
+          );
+
+          allow delete: if isAdmin() || isClassTeacher(classId);
+        }
+      }
+
+      // ---- course materials ---------------------------------------------
+
+      // Chapters, links and uploaded files for the class. Read by anyone
+      // enrolled; written only by the class's own teacher, or an admin.
+      //
+      // Note this sits alongside /assignments rather than under it: material
+      // belongs to the course, not to a single piece of work, and a student
+      // studying for a test shouldn't have to guess which assignment the notes
+      // were attached to.
+      // ---- class announcements ------------------------------------------
+
+      // A notice from the class's own teacher to the students in it.
+      //
+      // A subcollection rather than a ClassId field on /announcements: the path
+      // carries the class, so isClassTeacher(classId) gates the write directly
+      // and enrolment gates the read. Tagging the school-wide collection would
+      // have meant every reader filtering client-side, and a list query there
+      // would hand one class's notices to the whole school.
+      //
+      // Note this is a WIDER write audience than /announcements, which stays
+      // admin-only — but a narrower one in reach. A teacher can only ever
+      // address their own class.
+      match /announcements/{announcementId} {
+        allow read: if isAdmin() || isClassTeacher(classId) || isClassStudent(classId) ||
+          isParentOfClassMember(classId);
+
+        allow create: if (isAdmin() || isClassTeacher(classId))
+          // Byline pinned to the writer, same as everywhere else.
+          && request.resource.data.AuthorId == request.auth.uid;
+
+        allow update: if (isAdmin() || isClassTeacher(classId))
+          && request.resource.data.AuthorId == resource.data.AuthorId;
+
+        allow delete: if isAdmin() || isClassTeacher(classId);
+      }
+
+      // ---- learning units --------------------------------------------
+
+      // The course's chapters. Same audience as materials — read by anyone
+      // enrolled, written by the class's own teacher.
+      match /units/{unitId} {
+        allow read: if isAdmin() || isClassTeacher(classId) || isClassStudent(classId) ||
+          isParentOfClassMember(classId);
+
+        allow create: if (isAdmin() || isClassTeacher(classId))
+          && request.resource.data.AuthorId == request.auth.uid;
+
+        allow update: if (isAdmin() || isClassTeacher(classId))
+          && request.resource.data.AuthorId == resource.data.AuthorId;
+
+        allow delete: if isAdmin() || isClassTeacher(classId);
+      }
+
+      // ---- per-student progress ----------------------------------------
+
+      // Which materials a student has ticked off. The document ID is their UID,
+      // which is what makes "only your own" expressible without a lookup.
+      //
+      // The teacher can READ this — they need to see who is keeping up — but
+      // deliberately cannot WRITE it. Progress is the student's own record of
+      // what they've worked through; a teacher marking it on their behalf would
+      // make it meaningless. Grades are the teacher's channel, not this.
+      match /progress/{studentId} {
+        allow read: if isAdmin() || isClassTeacher(classId) ||
+          (isSelf(studentId) && isClassStudent(classId)) ||
+          isLinkedParent(studentId);
+
+        // isSelf AND isClassStudent, both: isSelf alone would let any signed-in
+        // user create a progress document under a class they aren't in, simply
+        // by using their own UID as the document ID.
+        allow create, update: if isSelf(studentId) && isClassStudent(classId);
+
+        allow delete: if isAdmin() || isClassTeacher(classId);
+      }
+
+      match /materials/{materialId} {
+        allow read: if isAdmin() || isClassTeacher(classId) || isClassStudent(classId) ||
+          isParentOfClassMember(classId);
+
+        allow create: if (isAdmin() || isClassTeacher(classId))
+          // Byline is pinned to the writer, same as announcements and sport.
+          && request.resource.data.AuthorId == request.auth.uid;
+
+        // AuthorId immutable: an edit must not reassign someone else's chapter.
+        allow update: if (isAdmin() || isClassTeacher(classId))
+          && request.resource.data.AuthorId == resource.data.AuthorId;
+
+        allow delete: if isAdmin() || isClassTeacher(classId);
+      }
+    }
+
+    // ---- timetable -------------------------------------------------------
+
+    // Teachers build the timetable for classes they own; admins for any class.
+    match /timetable/{entryId} {
+      allow read: if isSchoolCommunity();
+      allow create, update: if isAdmin() ||
+        (isTeacher() && isClassTeacher(request.resource.data.ClassId));
+      allow delete: if isAdmin() ||
+        (isTeacher() && isClassTeacher(resource.data.ClassId));
+    }
+
+    // School newspaper. Journalists are usually students, so this is the one
+    // place a student can publish — and only here. Published articles are
+    // public so visitors and guests can read them; drafts are not.
+    // NOTE: rules filter documents, they don't filter queries. An anonymous
+    // LIST over /newspaper is denied wholesale unless the client constrains it
+    // with `where IsPublished == true`, because the rule can't be satisfied for
+    // the unpublished drafts the query would otherwise return.
+    match /newspaper/{articleId} {
+      allow read: if resource.data.get('IsPublished', false) == true || isSchoolCommunity();
+
+      // A journalist may only create articles authored by themselves, and only
+      // as an unpublished draft — publishing is an editorial act. Admins and
+      // teachers can create and publish directly, which is what makes editorial
+      // oversight of a student newspaper work.
+      allow create: if isAdmin() || isTeacher() || (
+        isJournalist()
+        && request.resource.data.AuthorId == request.auth.uid
+        && request.resource.data.get('IsPublished', false) == false
+      );
+
+      allow update: if isAdmin() || isTeacher() || (
+        isJournalist()
+        && resource.data.AuthorId == request.auth.uid
+        // Authorship is immutable for journalists: without this a journalist
+        // could reassign an article to someone else, or claim another's work.
+        && request.resource.data.AuthorId == resource.data.AuthorId
+        // And they cannot publish their own work — a staff member must.
+        && request.resource.data.get('IsPublished', false) == resource.data.get('IsPublished', false)
+      );
+
+      allow delete: if isAdmin() || isTeacher() ||
+        (isJournalist() && resource.data.AuthorId == request.auth.uid);
+    }
+
+    // ---- announcements --------------------------------------------------
+
+    // School-wide notices. Everyone signed in reads them, including visitors —
+    // that's the point of a notice board. Only admins write.
+    //
+    // Visitors are deliberately included in the read: an open day notice is
+    // exactly the kind of thing a prospective parent should see. Anything
+    // genuinely internal belongs in a class, not here.
+    match /announcements/{announcementId} {
+      // isSchoolCommunity(), not isSignedIn(): a signed-in Visitor is a member
+      // of the database but not of the school, so they see only what's been
+      // explicitly marked public. This preserves the audience split the
+      // previous rule had — worth keeping, since "open day" and "Grade 11 exam
+      // timetable" are not the same audience.
+      allow read: if resource.data.get('IsPublic', false) == true || isSchoolCommunity();
+
+      allow create: if isAdmin()
+        // Pin authorship to the account doing the writing, so the byline can't
+        // be forged even by another admin.
+        && request.resource.data.AuthorId == request.auth.uid;
+
+      // AuthorId is immutable after creation: an edit must not be able to
+      // reassign a notice to a different admin.
+      allow update: if isAdmin()
+        && request.resource.data.AuthorId == resource.data.AuthorId;
+
+      allow delete: if isAdmin();
+    }
+
+    // ---- sports ---------------------------------------------------------
+
+    // Fixtures, results and sports news. Read by anyone signed in.
+    //
+    // Write is wider than announcements: coaches run the fixtures, admins
+    // cover for an unassigned sport, and journalists file match reports. The
+    // journalist branch is narrower than the other two — they may only touch
+    // their own posts, which is what stops a student rewriting a coach's
+    // result or deleting a fixture they dislike.
+    match /sports/{itemId} {
+      // Sport was public-facing under the old rules and stays that way — a
+      // fixture list is exactly what a prospective parent looks for.
+      allow read: if true;
+
+      allow create: if (isCoach() || isAdmin() || isJournalist())
+        && request.resource.data.AuthorId == request.auth.uid;
+
+      allow update: if isCoach() || isAdmin() || (
+        isJournalist()
+        && resource.data.AuthorId == request.auth.uid
+        && request.resource.data.AuthorId == resource.data.AuthorId
+      );
+
+      allow delete: if isCoach() || isAdmin() ||
+        (isJournalist() && resource.data.AuthorId == request.auth.uid);
+    }
+  }
+}

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    The school wordmark, the signed-in user's role and name, and the green rule
+    beneath. Shared for the same reason as the rail: five dashboards rendering
+    their own header is five headers that slowly stop matching.
+-->
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Controls.DashboardHeader"
+             x:DataType="viewModels:DashboardShellViewModel">
+    <VerticalStackLayout Spacing="0">
+        <Grid Style="{StaticResource NavBar}" ColumnDefinitions="*,Auto">
+            <VerticalStackLayout Grid.Column="0" VerticalOptions="Center">
+                <Label Text="{Binding SchoolName}" Style="{StaticResource NavWordmark}" />
+                <Label Text="{Binding RoleLabel}" Style="{StaticResource RowSubtle}" />
+            </VerticalStackLayout>
+
+            <HorizontalStackLayout Grid.Column="1" Spacing="9" VerticalOptions="Center">
+                <Border Style="{StaticResource AvatarTile}">
+                    <Label Text="{Binding Initials}" Style="{StaticResource AvatarInitials}" />
+                </Border>
+                <Label Text="{Binding DisplayName}" FontSize="13" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+        </Grid>
+        <BoxView Style="{StaticResource NavRuleBar}" />
+    </VerticalStackLayout>
+</ContentView>

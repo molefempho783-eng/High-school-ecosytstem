@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    A class, laid out as ARC's course home: a banner carrying the course title,
+    a welcome widget, and a visual table of contents of learning units each with
+    a progress bar.
+
+    Single column rather than ARC's main + right rail. On a phone the rail would
+    be a narrow strip; the rail widgets (announcements-style panels, work to do)
+    are stacked underneath in the order they'd read on desktop.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.StudentClassPage"
+             x:DataType="viewModels:StudentClassViewModel"
+             Title="Class">
+
+    <RefreshView IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshCommand}">
+        <ScrollView Style="{StaticResource PageCanvas}">
+            <VerticalStackLayout Spacing="0">
+
+                <!-- ============ Course banner ============ -->
+                <Grid Style="{StaticResource CourseBanner}"
+                      BackgroundColor="{StaticResource BrandDark}">
+                    <Label Text="{Binding ClassName}" Style="{StaticResource CourseBannerTitle}" />
+                </Grid>
+                <BoxView Style="{StaticResource NavRuleBar}" />
+
+                <VerticalStackLayout Padding="12" Spacing="12">
+
+                    <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                    <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
+                           IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
+
+                    <!-- ============ Welcome ============ -->
+
+                    <Border Style="{StaticResource Widget}">
+                        <VerticalStackLayout Spacing="0">
+                            <HorizontalStackLayout Margin="0,0,0,10">
+                                <Label Text="Welcome" Style="{StaticResource WidgetTitle}" />
+                                <Label Style="{StaticResource WidgetChevron}" />
+                            </HorizontalStackLayout>
+                            <Label Text="{Binding WelcomeMessage}" FontSize="14" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- ============ Visual table of contents ============ -->
+
+                    <Border Style="{StaticResource Widget}">
+                        <VerticalStackLayout Spacing="0">
+                            <HorizontalStackLayout Margin="0,0,0,4">
+                                <Label Text="Course content" Style="{StaticResource WidgetTitle}" />
+                                <Label Style="{StaticResource WidgetChevron}" />
+                            </HorizontalStackLayout>
+                            <Label Text="Tap a unit to open its contents and material."
+                                   Style="{StaticResource RowSubtle}" Margin="0,0,0,12" />
+
+                            <FlexLayout BindableLayout.ItemsSource="{Binding UnitCards}"
+                                        Wrap="Wrap" Direction="Row" JustifyContent="Start"
+                                        AlignItems="Start" IsVisible="{Binding HasUnits}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:UnitCardRow">
+                                        <!-- 168 wide: content area is 150, which is
+                                             UnitCardRow.TrackWidth. Keep them in step. -->
+                                        <Border Style="{StaticResource ClassCard}"
+                                                WidthRequest="132" Margin="0,0,8,8">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnUnitTapped" />
+                                            </Border.GestureRecognizers>
+                                            <VerticalStackLayout Spacing="0">
+                                                <BoxView Style="{StaticResource ClassCardBanner}"
+                                                         Color="{Binding BannerColor}" />
+                                                <VerticalStackLayout Padding="9,9" Spacing="0">
+                                                    <Label Text="{Binding Title}"
+                                                           Style="{StaticResource ClassCardTitle}"
+                                                           MaxLines="3" HeightRequest="52" />
+
+                                                    <!-- Track and fill, overlaid. -->
+                                                    <Grid Margin="0,6,0,0">
+                                                        <BoxView Style="{StaticResource ProgressTrack}" />
+                                                        <BoxView Style="{StaticResource ProgressFill}"
+                                                                 WidthRequest="{Binding FillWidth}" />
+                                                    </Grid>
+
+                                                    <Label Text="{Binding ProgressLabel}"
+                                                           Style="{StaticResource ProgressLabel}" />
+                                                </VerticalStackLayout>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+
+                            <Border Style="{StaticResource WidgetInset}"
+                                    IsVisible="{Binding UnitsEmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                                <Label Text="{Binding UnitsEmptyMessage}" Style="{StaticResource EmptyStateText}" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- ============ Class notices ============ -->
+
+                    <Border Style="{StaticResource Widget}">
+                        <VerticalStackLayout Spacing="0">
+                            <HorizontalStackLayout Margin="0,0,0,10">
+                                <Label Text="Notices" Style="{StaticResource WidgetTitle}" />
+                                <Label Style="{StaticResource WidgetChevron}" />
+                            </HorizontalStackLayout>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Grid.Column="0" Text="From your teacher"
+                                       Style="{StaticResource SectionHeading}" />
+                                <Border Grid.Column="1" Style="{StaticResource CountBadge}">
+                                    <Label Text="{Binding AnnouncementsCount}"
+                                           Style="{StaticResource CountBadgeText}" />
+                                </Border>
+                            </Grid>
+                            <BoxView Style="{StaticResource SectionRule}" />
+
+                            <FlexLayout BindableLayout.ItemsSource="{Binding Announcements}"
+                                        Style="{StaticResource TileGrid}"
+                                        IsVisible="{Binding HasAnnouncements}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:AnnouncementRow">
+                                        <Border Style="{StaticResource TileWide}">
+                                            <VerticalStackLayout Spacing="0">
+                                                <BoxView Style="{StaticResource TileAccent}"
+                                                         Color="{StaticResource BrandBright}" />
+                                                <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                        <Label Grid.Column="0" Text="&#x1F4E2;"
+                                                               Style="{StaticResource TileGlyph}" />
+                                                        <Border Grid.Column="1" Style="{StaticResource Chip}"
+                                                                Margin="0" IsVisible="{Binding IsPinned}">
+                                                            <Label Text="Pinned" Style="{StaticResource ChipText}" />
+                                                        </Border>
+                                                    </Grid>
+                                                    <Label Text="{Binding Title}" Style="{StaticResource TileTitle}"
+                                                           FontAttributes="Bold" HeightRequest="36" />
+                                                    <Label Text="{Binding Body}" Style="{StaticResource TileSubtle}" />
+                                                    <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
+                                                </VerticalStackLayout>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+
+                            <Border Style="{StaticResource WidgetInset}"
+                                    IsVisible="{Binding AnnouncementsEmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                                <Label Text="{Binding AnnouncementsEmptyMessage}"
+                                       Style="{StaticResource EmptyStateText}" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- ============ Work to do ============ -->
+
+                    <Border Style="{StaticResource Widget}">
+                        <VerticalStackLayout Spacing="0">
+                            <HorizontalStackLayout Margin="0,0,0,12">
+                                <Label Text="Work to do" Style="{StaticResource WidgetTitle}" />
+                                <Label Style="{StaticResource WidgetChevron}" />
+                            </HorizontalStackLayout>
+
+                            <FlexLayout BindableLayout.ItemsSource="{Binding ClassWork}"
+                                        Style="{StaticResource TileGrid}"
+                                        IsVisible="{Binding HasClassWork}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:StudentWorkRow">
+                                        <Border Style="{StaticResource Tile}">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnWorkTapped" />
+                                            </Border.GestureRecognizers>
+                                            <VerticalStackLayout Spacing="0">
+                                                <BoxView Style="{StaticResource TileAccent}"
+                                                         Color="{Binding AccentColor}" />
+                                                <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                    <Label Text="{Binding Kind}" Style="{StaticResource TileKicker}" />
+                                                    <Label Text="{Binding Title}" Style="{StaticResource TileTitle}"
+                                                           HeightRequest="36" />
+                                                    <Label Text="{Binding DueShort}" Style="{StaticResource TileMeta}" />
+                                                </VerticalStackLayout>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+
+                            <!-- ARC's "All Clear For Now!" empty state. -->
+                            <Border Style="{StaticResource WidgetInset}"
+                                    IsVisible="{Binding HasClassWork, Converter={StaticResource InvertedBool}}"
+                                    BackgroundColor="{StaticResource SuccessFill}">
+                                <VerticalStackLayout Spacing="3" HorizontalOptions="Center">
+                                    <Label Text="&#x2713;" FontSize="22" HorizontalOptions="Center"
+                                           TextColor="{StaticResource SuccessText}" />
+                                    <Label Text="All clear for now" FontAttributes="Bold" FontSize="15"
+                                           HorizontalOptions="Center" TextColor="{StaticResource SuccessText}" />
+                                    <Label Text="{Binding WorkEmptyMessage}" FontSize="12"
+                                           HorizontalTextAlignment="Center"
+                                           TextColor="{StaticResource SuccessText}" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- ============ Tests and exams ============ -->
+
+                    <Border Style="{StaticResource Widget}">
+                        <VerticalStackLayout Spacing="0">
+                            <HorizontalStackLayout Margin="0,0,0,10">
+                                <Label Text="Tests and exams" Style="{StaticResource WidgetTitle}" />
+                                <Label Style="{StaticResource WidgetChevron}" />
+                            </HorizontalStackLayout>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Grid.Column="0" Text="Coming up" Style="{StaticResource SectionHeading}" />
+                                <Border Grid.Column="1" Style="{StaticResource CountBadge}">
+                                    <Label Text="{Binding AssessmentsCount}" Style="{StaticResource CountBadgeText}" />
+                                </Border>
+                            </Grid>
+                            <BoxView Style="{StaticResource SectionRule}" />
+
+                            <FlexLayout BindableLayout.ItemsSource="{Binding Assessments}"
+                                        Style="{StaticResource TileGrid}"
+                                        IsVisible="{Binding HasAssessments}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:AssessmentRow">
+                                        <Border Style="{StaticResource Tile}">
+                                            <VerticalStackLayout Spacing="0">
+                                                <BoxView Style="{StaticResource TileAccent}"
+                                                         Color="{Binding AccentColor}" />
+                                                <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                    <Label Text="{Binding KindLabel}" Style="{StaticResource TileKicker}" />
+                                                    <!-- The date is the figure that matters on an
+                                                         assessment tile, not a score. -->
+                                                    <Label Text="{Binding DateLabel}" Style="{StaticResource TileValue}"
+                                                           FontSize="16" />
+                                                    <Label Text="{Binding Title}" Style="{StaticResource TileTitle}"
+                                                           HeightRequest="34" />
+                                                    <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
+                                                    <Border Style="{StaticResource Chip}" IsVisible="{Binding IsSoon}">
+                                                        <Label Text="This week" Style="{StaticResource ChipText}" />
+                                                    </Border>
+                                                </VerticalStackLayout>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+
+                            <Border Style="{StaticResource WidgetInset}"
+                                    IsVisible="{Binding AssessmentsEmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                                <Label Text="{Binding AssessmentsEmptyMessage}" Style="{StaticResource EmptyStateText}" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- ============ Grades ============ -->
+
+                    <Border Style="{StaticResource Widget}">
+                        <VerticalStackLayout Spacing="0">
+                            <HorizontalStackLayout Margin="0,0,0,10">
+                                <Label Text="My grades" Style="{StaticResource WidgetTitle}" />
+                                <Label Style="{StaticResource WidgetChevron}" />
+                            </HorizontalStackLayout>
+
+                            <Border Style="{StaticResource WidgetInset}" Margin="0,0,0,10"
+                                    IsVisible="{Binding HasAverage}">
+                                <Label Text="{Binding AverageLabel}" FontAttributes="Bold" FontSize="14" />
+                            </Border>
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Grid.Column="0" Text="Marked work" Style="{StaticResource SectionHeading}" />
+                                <Border Grid.Column="1" Style="{StaticResource CountBadge}">
+                                    <Label Text="{Binding GradesCount}" Style="{StaticResource CountBadgeText}" />
+                                </Border>
+                            </Grid>
+                            <BoxView Style="{StaticResource SectionRule}" />
+
+                            <FlexLayout BindableLayout.ItemsSource="{Binding Grades}"
+                                        Style="{StaticResource TileGrid}"
+                                        IsVisible="{Binding HasGrades}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:GradeRow">
+                                        <Border Style="{StaticResource Tile}">
+                                            <VerticalStackLayout Spacing="0">
+                                                <!-- Banded by percentage so a wall of marks
+                                                     reads at a glance. -->
+                                                <BoxView Style="{StaticResource TileAccent}"
+                                                         Color="{Binding BandColor}" />
+                                                <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                    <Label Text="{Binding Kind}" Style="{StaticResource TileKicker}" />
+                                                    <Label Text="{Binding PercentLabel}" Style="{StaticResource TileValue}" />
+                                                    <Label Text="{Binding ScoreLabel}" Style="{StaticResource TileMeta}" />
+                                                    <Label Text="{Binding Title}" Style="{StaticResource TileTitle}"
+                                                           HeightRequest="34" />
+                                                </VerticalStackLayout>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+
+                            <Border Style="{StaticResource WidgetInset}"
+                                    IsVisible="{Binding GradesEmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                                <Label Text="{Binding GradesEmptyMessage}" Style="{StaticResource EmptyStateText}" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Border>
+
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </RefreshView>
+</ContentPage>

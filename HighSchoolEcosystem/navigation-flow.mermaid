@@ -1,0 +1,64 @@
+flowchart TD
+    Launch(["App launch<br/>MauiProgram.CreateMauiApp"]) --> AppWin["App.CreateWindow<br/><i>always starts here — the signed-in<br/>check needs an async token refresh</i>"]
+    AppWin --> Startup["StartupPage<br/><i>spinner</i>"]
+
+    Startup --> Restore{"TryRestoreSessionAsync<br/><i>refresh token from SecureStorage</i>"}
+    Restore -->|"valid token"| Resolve
+    Restore -->|"no token / rejected / offline"| Login
+
+    Login["LoginPage"] -->|"Sign in"| SignIn{"SignInAsync"}
+    SignIn -->|"success"| Resolve
+    SignIn -->|"error"| LoginErr["Message shown in place<br/><i>wrong password, offline,<br/>timeout, misconfig</i>"]
+    LoginErr --> Login
+
+    Login -->|"Create an account"| Register["RegisterPage<br/><i>pushed — back button returns</i>"]
+    Login -->|"Forgot password?"| Forgot["ForgotPasswordPage<br/><i>pushed</i>"]
+    Login -->|"Continue as a visitor"| Dash
+
+    Register -->|"registered<br/>(signs in immediately)"| Resolve
+    Forgot -->|"reset email sent"| Forgot
+
+    Resolve{"HomePageResolver<br/><i>loads profile, reads role</i>"}
+    Resolve -->|"Role = Admin"| AdminDash
+    Resolve -->|"Role = Teacher"| TeachDash
+    Resolve -->|"any other role<br/>or guest"| Dash
+
+    TeachDash["TeacherDashboardPage<br/><b>root — teachers only</b>"]
+    TeachDash --> TC["My classes<br/><i>create · enrol · assign</i>"]
+    TeachDash --> TT["Timetable<br/><i>weekly periods, clash check</i>"]
+    TC --> TCD["Class detail<br/>students · assignments · homework"]
+    TeachDash -->|"Account (toolbar)"| Account
+
+    AdminDash["AdminDashboardPage<br/><b>root — admins only</b>"]
+    AdminDash --> MU["Manage users<br/><i>change role · link parents</i>"]
+    AdminDash --> RO["Roster / invites<br/><i>pre-assign by email</i>"]
+    AdminDash --> SET["School settings"]
+    MU --> UD["User detail<br/>role picker + student links"]
+    AdminDash -->|"Account (toolbar)"| Account
+
+    Dash["DashboardPage<br/><b>root</b>"] --> Load{"DashboardViewModel.LoadAsync"}
+
+    Load -->|"not signed in"| Guest["Guest view<br/>public announcements<br/>+ sports only"]
+    Load -->|"profile loaded"| RoleSwitch{"Role"}
+    Load -->|"rostered staff,<br/>email unverified"| Verify["'Verify your email'<br/>panel + resend button"]
+    Load -->|"bad roster entry"| ConfigErr["Actionable message<br/><i>names the field to fix</i>"]
+
+    RoleSwitch -->|"Student"| S["Announcements · Timetable · Sports<br/>My Courses &amp; Assignments · My Grades"]
+    RoleSwitch -->|"Teacher"| T["Announcements · Timetable · Sports<br/>My Classes · Gradebook"]
+    RoleSwitch -->|"Parent"| P["Announcements · Timetable · Sports<br/>My Children's Grades"]
+    RoleSwitch -->|"Coach"| CO["Announcements · Timetable<br/>Fixtures · Rosters · Sports News"]
+    RoleSwitch -->|"Visitor"| V["News &amp; Announcements<br/>Sports Fixtures &amp; Results"]
+
+    Guest -->|"Sign in"| Login
+    Dash -->|"Account (toolbar)<br/><i>signed-in users</i>"| Account["AccountPage<br/><i>pushed</i>"]
+    Account -->|"Sign out"| Login
+
+    classDef root fill:#156B76,stroke:#0d4149,color:#fff
+    classDef pushed fill:#123A5A,stroke:#0a2337,color:#fff
+    classDef state fill:#E98D52,stroke:#b56a3a,color:#1a1a1a
+    classDef problem fill:#8c3b3b,stroke:#5e2626,color:#fff
+
+    class Startup,Login,Dash,AdminDash,TeachDash root
+    class Register,Forgot,Account,MU,RO,SET,UD,TC,TT,TCD pushed
+    class S,T,P,V,CO,Guest state
+    class Verify,ConfigErr,LoginErr problem

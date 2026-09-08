@@ -1,0 +1,146 @@
+﻿<?xml version="1.0" encoding="UTF-8" ?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <!--
+        ============================================================
+        BRAND LAYER — this is the only block you edit per client school.
+        ============================================================
+        Every other colour in the app is derived from these, so recolouring
+        a new school means changing the six values below and nothing else.
+        Don't reference raw hex anywhere outside this file.
+
+        Current values are sampled from the ARC / Emeris portal.
+    -->
+    <Color x:Key="BrandDark">#0D5257</Color>
+    <Color x:Key="BrandDarker">#083A3E</Color>
+    <Color x:Key="BrandBright">#178C8C</Color>
+    <Color x:Key="BrandAccent">#8CC63E</Color>
+    <Color x:Key="BrandLink">#2C5F8A</Color>
+    <Color x:Key="BrandMeta">#A85400</Color>
+
+    <!--
+        ============================================================
+        SEMANTIC LAYER — what the XAML actually binds to.
+        ============================================================
+        Named for the job, not the colour, so a school with a maroon palette
+        doesn't end up with a token called "Teal" all over its dashboards.
+    -->
+
+    <!-- Surfaces -->
+    <Color x:Key="PageBackground">#F3F3F3</Color>
+    <Color x:Key="PageBackgroundDark">#141618</Color>
+    <Color x:Key="CardBackground">#FFFFFF</Color>
+    <Color x:Key="CardBackgroundDark">#1E2225</Color>
+    <Color x:Key="CardBorder">#E0E0E0</Color>
+    <Color x:Key="CardBorderDark">#33393D</Color>
+
+    <!-- The top navigation bar and its second row of round shortcut icons. -->
+    <Color x:Key="NavBackground">#FFFFFF</Color>
+    <Color x:Key="NavBackgroundDark">#1A1E21</Color>
+    <Color x:Key="NavIconFill">#0D5257</Color>
+    <Color x:Key="NavRule">#8CC63E</Color>
+
+    <!-- Text -->
+    <Color x:Key="TextPrimary">#202122</Color>
+    <Color x:Key="TextPrimaryDark">#ECEFF1</Color>
+    <Color x:Key="TextSecondary">#5A5A5A</Color>
+    <Color x:Key="TextSecondaryDark">#A6AFB4</Color>
+    <Color x:Key="TextMuted">#7A7A7A</Color>
+    <Color x:Key="TextMutedDark">#8C9498</Color>
+
+    <!--
+        Link text. Deliberately a separate token from BrandDark: in ARC the
+        clickable titles are blue while the chrome is teal, and collapsing the
+        two makes every list row read as chrome.
+    -->
+    <Color x:Key="LinkText">#2C5F8A</Color>
+    <Color x:Key="LinkTextDark">#7FB2DC</Color>
+
+    <!-- The "Due 26 Aug • Subject • Class" line under every list row. -->
+    <Color x:Key="MetaText">#A85400</Color>
+    <Color x:Key="MetaTextDark">#E0A46A</Color>
+
+    <!-- Status -->
+    <Color x:Key="BadgeFill">#C5561B</Color>
+    <Color x:Key="BadgeText">#FFFFFF</Color>
+    <Color x:Key="OverdueText">#B3261E</Color>
+    <Color x:Key="OverdueTextDark">#F2B8B5</Color>
+    <Color x:Key="SuccessText">#2E6B33</Color>
+    <Color x:Key="SuccessTextDark">#9BD49F</Color>
+    <Color x:Key="SuccessFill">#EAF3DE</Color>
+    <Color x:Key="WarningFill">#FAEEDA</Color>
+    <Color x:Key="DangerFill">#FCEBEB</Color>
+
+    <!-- Form controls -->
+    <Color x:Key="FieldBackground">#FFFFFF</Color>
+    <Color x:Key="FieldBackgroundDark">#23282C</Color>
+    <Color x:Key="FieldBorder">#C4C4C4</Color>
+    <Color x:Key="FieldBorderDark">#454C51</Color>
+    <Color x:Key="FieldPlaceholder">#8A8A8A</Color>
+
+    <!--
+        Class card banners. ARC uses photography; we use flat colour, picked
+        round-robin by class so a student can tell their subjects apart at a
+        glance without anyone having to upload images.
+    -->
+    <Color x:Key="Banner1">#0D5257</Color>
+    <Color x:Key="Banner2">#178C8C</Color>
+    <Color x:Key="Banner3">#4A6572</Color>
+    <Color x:Key="Banner4">#7A5C3E</Color>
+    <Color x:Key="Banner5">#2C5F8A</Color>
+    <Color x:Key="Banner6">#6B7A3A</Color>
+
+    <!--
+        ============================================================
+        COMPATIBILITY — keys the stock MAUI template styles still reference.
+        ============================================================
+        Styles.xaml ships from the template referencing Primary/Gray400/etc.
+        Rather than rewrite every one of those setters, the old keys are
+        remapped onto the new palette. Prefer the semantic names above in new
+        markup; these exist so nothing silently falls back to purple.
+    -->
+    <Color x:Key="Primary">#0D5257</Color>
+    <Color x:Key="PrimaryDark">#178C8C</Color>
+    <Color x:Key="PrimaryDarkText">#ECEFF1</Color>
+    <Color x:Key="Secondary">#E3EFEF</Color>
+    <Color x:Key="SecondaryDarkText">#7FB2DC</Color>
+    <Color x:Key="Tertiary">#8CC63E</Color>
+
+    <Color x:Key="White">White</Color>
+    <Color x:Key="Black">Black</Color>
+    <Color x:Key="Magenta">#D600AA</Color>
+    <Color x:Key="MidnightBlue">#083A3E</Color>
+    <Color x:Key="OffBlack">#1f1f1f</Color>
+
+    <Color x:Key="Gray100">#F3F3F3</Color>
+    <Color x:Key="Gray200">#E0E0E0</Color>
+    <Color x:Key="Gray300">#C4C4C4</Color>
+    <Color x:Key="Gray400">#9A9A9A</Color>
+    <Color x:Key="Gray500">#7A7A7A</Color>
+    <Color x:Key="Gray600">#5A5A5A</Color>
+    <Color x:Key="Gray900">#202122</Color>
+    <Color x:Key="Gray950">#141618</Color>
+
+    <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource Primary}"/>
+    <SolidColorBrush x:Key="SecondaryBrush" Color="{StaticResource Secondary}"/>
+    <SolidColorBrush x:Key="TertiaryBrush" Color="{StaticResource Tertiary}"/>
+    <SolidColorBrush x:Key="WhiteBrush" Color="{StaticResource White}"/>
+    <SolidColorBrush x:Key="BlackBrush" Color="{StaticResource Black}"/>
+
+    <SolidColorBrush x:Key="BrandDarkBrush" Color="{StaticResource BrandDark}"/>
+    <SolidColorBrush x:Key="BrandBrightBrush" Color="{StaticResource BrandBright}"/>
+    <SolidColorBrush x:Key="BrandAccentBrush" Color="{StaticResource BrandAccent}"/>
+    <SolidColorBrush x:Key="CardBorderBrush" Color="{StaticResource CardBorder}"/>
+    <SolidColorBrush x:Key="BadgeFillBrush" Color="{StaticResource BadgeFill}"/>
+
+    <SolidColorBrush x:Key="Gray100Brush" Color="{StaticResource Gray100}"/>
+    <SolidColorBrush x:Key="Gray200Brush" Color="{StaticResource Gray200}"/>
+    <SolidColorBrush x:Key="Gray300Brush" Color="{StaticResource Gray300}"/>
+    <SolidColorBrush x:Key="Gray400Brush" Color="{StaticResource Gray400}"/>
+    <SolidColorBrush x:Key="Gray500Brush" Color="{StaticResource Gray500}"/>
+    <SolidColorBrush x:Key="Gray600Brush" Color="{StaticResource Gray600}"/>
+    <SolidColorBrush x:Key="Gray900Brush" Color="{StaticResource Gray900}"/>
+    <SolidColorBrush x:Key="Gray950Brush" Color="{StaticResource Gray950}"/>
+</ResourceDictionary>

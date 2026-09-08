@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    Marking one assignment.
+
+    Wide tiles rather than the usual grid: each card holds a written answer, a
+    file link, a mark box and a feedback box, and squeezing that into 168px
+    would make every field unusable.
+
+    Saving is per student, not one big form — a teacher marks a class over
+    several sittings, and losing 25 marks to a dropped connection is worse than
+    useless.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.TeacherMarkingPage"
+             x:DataType="viewModels:TeacherMarkingViewModel"
+             Title="Marking">
+
+    <RefreshView IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshCommand}">
+        <ScrollView Style="{StaticResource PageCanvas}">
+            <VerticalStackLayout Spacing="0">
+
+                <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                    <Label Text="{Binding AssignmentTitle}" FontSize="20" FontAttributes="Bold"
+                           TextColor="{StaticResource White}" />
+                    <Label Text="{Binding ClassName}" FontSize="13"
+                           TextColor="{StaticResource White}" Opacity="0.85" />
+                    <Label Text="{Binding PointsLabel}" FontSize="12"
+                           TextColor="{StaticResource White}" Opacity="0.75" />
+                </VerticalStackLayout>
+                <BoxView Style="{StaticResource NavRuleBar}" />
+
+                <VerticalStackLayout Padding="12" Spacing="12">
+
+                    <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+                    <Border Style="{StaticResource WidgetInset}"
+                            BackgroundColor="{StaticResource WarningFill}"
+                            IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}">
+                        <Label Text="{Binding StatusMessage}" Style="{StaticResource EmptyStateText}" />
+                    </Border>
+
+                    <!-- ============ Progress ============ -->
+
+                    <Border Style="{StaticResource Widget}">
+                        <VerticalStackLayout Spacing="0">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <VerticalStackLayout Grid.Column="0" Spacing="1">
+                                    <Label Text="Submissions" Style="{StaticResource WidgetTitle}" />
+                                    <Label Text="{Binding ProgressLabel}" Style="{StaticResource RowMeta}" />
+                                </VerticalStackLayout>
+                                <Border Grid.Column="1" Style="{StaticResource CountBadge}"
+                                        IsVisible="{Binding HasUnmarked}">
+                                    <Label Text="{Binding NeedsMarkingCount}"
+                                           Style="{StaticResource CountBadgeText}" />
+                                </Border>
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- ============ The pile ============ -->
+
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Submissions}" Spacing="12">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="viewModels:MarkingRow">
+                                <Border Style="{StaticResource Widget}" Padding="0">
+                                    <VerticalStackLayout Spacing="0">
+
+                                        <!-- Amber while it waits, green once marked -->
+                                        <BoxView Style="{StaticResource TileAccent}"
+                                                 Color="{Binding StatusColor}" />
+
+                                        <VerticalStackLayout Padding="14,12" Spacing="0">
+
+                                            <!-- Who -->
+                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10"
+                                                  Margin="0,0,0,10">
+                                                <Border Grid.Column="0" Style="{StaticResource AvatarTile}"
+                                                        WidthRequest="34" HeightRequest="34">
+                                                    <Label Text="{Binding Initials}"
+                                                           Style="{StaticResource AvatarInitials}" FontSize="12" />
+                                                </Border>
+                                                <VerticalStackLayout Grid.Column="1" Spacing="1"
+                                                                     VerticalOptions="Center">
+                                                    <Label Text="{Binding StudentName}"
+                                                           Style="{StaticResource WidgetTitle}" FontSize="15" />
+                                                    <Label Text="{Binding SubmittedLabel}"
+                                                           Style="{StaticResource RowMeta}" />
+                                                </VerticalStackLayout>
+                                                <Border Grid.Column="2" Style="{StaticResource Chip}" Margin="0"
+                                                        VerticalOptions="Center">
+                                                    <Label Text="{Binding StatusLabel}"
+                                                           Style="{StaticResource ChipText}" />
+                                                </Border>
+                                            </Grid>
+
+                                            <!-- What the auto-marker gave, if it ran -->
+                                            <Border Style="{StaticResource WidgetInset}"
+                                                    BackgroundColor="{StaticResource SuccessFill}"
+                                                    Margin="0,0,0,10"
+                                                    IsVisible="{Binding HasAutoScore}">
+                                                <VerticalStackLayout Spacing="3">
+                                                    <Label Text="{Binding AutoScoreLabel}"
+                                                           FontAttributes="Bold" FontSize="14"
+                                                           TextColor="{StaticResource SuccessText}" />
+                                                    <Label Text="{Binding AutoFeedback}" FontSize="12"
+                                                           TextColor="{StaticResource SuccessText}" />
+                                                </VerticalStackLayout>
+                                            </Border>
+
+                                            <!-- Written answer -->
+                                            <VerticalStackLayout Spacing="4" Margin="0,0,0,10"
+                                                                 IsVisible="{Binding HasWritten}">
+                                                <Label Text="Their answer" Style="{StaticResource SectionHeading}"
+                                                       FontSize="13" />
+                                                <Border Style="{StaticResource WidgetInset}">
+                                                    <Label Text="{Binding WrittenAnswer}" FontSize="14"
+                                                           LineHeight="1.4" />
+                                                </Border>
+                                            </VerticalStackLayout>
+
+                                            <!-- Attached file -->
+                                            <VerticalStackLayout Spacing="4" Margin="0,0,0,10"
+                                                                 IsVisible="{Binding HasFile}">
+                                                <Label Text="Attached file" Style="{StaticResource SectionHeading}"
+                                                       FontSize="13" />
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="9">
+                                                    <Grid.GestureRecognizers>
+                                                        <TapGestureRecognizer Tapped="OnFileTapped" />
+                                                    </Grid.GestureRecognizers>
+                                                    <Label Grid.Column="0" Text="&#x1F5CE;"
+                                                           Style="{StaticResource RowIcon}" />
+                                                    <Label Grid.Column="1" Text="{Binding FileLabel}"
+                                                           Style="{StaticResource RowTitle}" />
+                                                </Grid>
+                                            </VerticalStackLayout>
+
+                                            <BoxView Style="{StaticResource SectionRule}" />
+
+                                            <!-- The mark -->
+                                            <Label Text="Your mark" Style="{StaticResource SectionHeading}"
+                                                   FontSize="13" Margin="0,0,0,6" />
+
+                                            <Grid ColumnDefinitions="100,Auto,*" ColumnSpacing="9"
+                                                  Margin="0,0,0,8">
+                                                <Border Grid.Column="0" Style="{StaticResource WidgetInset}"
+                                                        Padding="10,2">
+                                                    <Entry Text="{Binding GradeText}" Keyboard="Numeric"
+                                                           Placeholder="Mark" />
+                                                </Border>
+                                                <Label Grid.Column="1" Text="{Binding OutOf, StringFormat='/ {0}'}"
+                                                       Style="{StaticResource RowSubtle}"
+                                                       VerticalOptions="Center" />
+                                                <Label Grid.Column="2" Text="Saved"
+                                                       FontSize="12" FontAttributes="Bold"
+                                                       TextColor="{StaticResource SuccessText}"
+                                                       VerticalOptions="Center"
+                                                       IsVisible="{Binding JustSaved}" />
+                                            </Grid>
+
+                                            <Border Style="{StaticResource WidgetInset}" Padding="8,2"
+                                                    Margin="0,0,0,8">
+                                                <Editor Text="{Binding Feedback}" HeightRequest="80"
+                                                        Placeholder="Feedback for this student (optional)" />
+                                            </Border>
+
+                                            <Button Text="Save mark" Style="{StaticResource BrandButton}"
+                                                    HorizontalOptions="Start"
+                                                    FontSize="13" Padding="14,7" MinimumHeightRequest="38"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherMarkingViewModel}}, Path=SaveCommand}"
+                                                    CommandParameter="{Binding .}" />
+
+                                        </VerticalStackLayout>
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+
+                    <Border Style="{StaticResource Widget}"
+                            IsVisible="{Binding EmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                        <VerticalStackLayout Spacing="6">
+                            <Label Text="Nothing to mark" Style="{StaticResource WidgetTitle}" />
+                            <Label Text="{Binding EmptyMessage}" Style="{StaticResource RowSubtle}" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </RefreshView>
+</ContentPage>

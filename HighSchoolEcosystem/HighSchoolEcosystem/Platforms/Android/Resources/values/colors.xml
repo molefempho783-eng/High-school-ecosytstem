@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android system chrome: status bar, splash background, the app's entry in the
+    task switcher. These are read by Android before MAUI starts, so they cannot
+    come from Colors.xaml and have to be kept in step with it by hand.
+
+    Keep these matching BrandDark / BrandDarker / BrandAccent when recolouring
+    for a client school — otherwise the status bar stays the old school's colour
+    and it's only visible on a real device, not in the Windows build.
+-->
+<resources>
+    <color name="colorPrimary">#0D5257</color>
+    <color name="colorPrimaryDark">#083A3E</color>
+    <color name="colorAccent">#8CC63E</color>
+</resources>

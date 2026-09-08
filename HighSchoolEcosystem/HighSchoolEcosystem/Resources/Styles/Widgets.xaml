@@ -1,0 +1,609 @@
+﻿<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+    The ARC widget vocabulary.
+
+    ARC's design is modular: the page is a grey canvas and everything on it is
+    a white card with a header, containing rows that all look the same. That's
+    a small enough set of components to define once here and reuse across every
+    screen, which is the whole reason the redesign is affordable.
+
+    Naming convention: Widget* = the card and its chrome, Row* = a line item
+    inside one, Card* = the tiles in a grid.
+
+    Nothing in this file references a raw hex value. Colours come from
+    Colors.xaml so a client school is recoloured in one place.
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <!-- ==================== The card itself ==================== -->
+
+    <!--
+        Every panel on every screen. 6px radius and a 1px hairline, matching
+        ARC. No shadow: ARC uses a border, and shadows on Android render
+        heavier than on Windows, so a border keeps the platforms consistent.
+    -->
+    <Style x:Key="Widget" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource CardBackground}, Dark={StaticResource CardBackgroundDark}}" />
+        <Setter Property="Stroke" Value="{AppThemeBinding Light={StaticResource CardBorder}, Dark={StaticResource CardBorderDark}}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <!-- 14 a side is load-bearing: it's in the tile-width arithmetic. -->
+        <Setter Property="Padding" Value="14,13" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 6" />
+    </Style>
+
+    <!-- Same card, tighter padding — for the narrow right-hand rail. -->
+    <Style x:Key="WidgetCompact" TargetType="Border" BasedOn="{StaticResource Widget}">
+        <Setter Property="Padding" Value="14,12" />
+    </Style>
+
+    <!--
+        An inset box inside a widget. ARC uses this for empty states
+        ("There are no announcements to display") and for the date selector at
+        the top of the calendar.
+    -->
+    <Style x:Key="WidgetInset" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="Stroke" Value="{AppThemeBinding Light={StaticResource CardBorder}, Dark={StaticResource CardBorderDark}}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Padding" Value="10" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 3" />
+    </Style>
+
+    <!-- ==================== Headers ==================== -->
+
+    <!-- "Work to do", "My classes" — the widget's own title. -->
+    <Style x:Key="WidgetTitle" TargetType="Label">
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextPrimary}, Dark={StaticResource TextPrimaryDark}}" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
+    <!-- The ⌄ next to a widget title. Decorative unless wired to collapse. -->
+    <Style x:Key="WidgetChevron" TargetType="Label">
+        <Setter Property="Text" Value="&#x25BE;" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
+        <Setter Property="VerticalOptions" Value="Center" />
+        <Setter Property="Margin" Value="6,2,0,0" />
+    </Style>
+
+    <!--
+        "Overdue", "26 August – 8 September" — a section inside a widget.
+        Pair with SectionRule below; ARC always underlines these.
+    -->
+    <Style x:Key="SectionHeading" TargetType="Label">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextPrimary}, Dark={StaticResource TextPrimaryDark}}" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
+    <Style x:Key="SectionRule" TargetType="BoxView">
+        <Setter Property="HeightRequest" Value="1" />
+        <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource CardBorder}, Dark={StaticResource CardBorderDark}}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="Margin" Value="0,4,0,9" />
+    </Style>
+
+    <!--
+        The count circle on the right of a section heading. Fixed 18px so the
+        digit stays centred; counts above 99 would clip, which no real class
+        will hit.
+    -->
+    <Style x:Key="CountBadge" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{StaticResource BadgeFill}" />
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="WidthRequest" Value="18" />
+        <Setter Property="HeightRequest" Value="18" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="VerticalOptions" Value="Center" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 9" />
+    </Style>
+
+    <Style x:Key="CountBadgeText" TargetType="Label">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="TextColor" Value="{StaticResource BadgeText}" />
+        <Setter Property="HorizontalOptions" Value="Center" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
+    <!-- ==================== List rows ==================== -->
+
+    <!--
+        The clickable title of a row. Blue, not brand teal — see the LinkText
+        note in Colors.xaml.
+    -->
+    <Style x:Key="RowTitle" TargetType="Label">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource LinkText}, Dark={StaticResource LinkTextDark}}" />
+    </Style>
+
+    <!-- "Due 26 Aug • Mathematics • Grade 10A" -->
+    <Style x:Key="RowMeta" TargetType="Label">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource MetaText}, Dark={StaticResource MetaTextDark}}" />
+        <Setter Property="Margin" Value="0,1,0,0" />
+    </Style>
+
+    <!-- Same line, but for work that's late. -->
+    <Style x:Key="RowMetaOverdue" TargetType="Label" BasedOn="{StaticResource RowMeta}">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource OverdueText}, Dark={StaticResource OverdueTextDark}}" />
+        <Setter Property="FontAttributes" Value="Bold" />
+    </Style>
+
+    <!-- Neutral supporting text where the orange meta line would be too loud. -->
+    <Style x:Key="RowSubtle" TargetType="Label">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
+    </Style>
+
+    <!-- The little document glyph at the left of each row. -->
+    <Style x:Key="RowIcon" TargetType="Label">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
+        <Setter Property="VerticalOptions" Value="Start" />
+        <Setter Property="Margin" Value="0,1,0,0" />
+    </Style>
+
+    <Style x:Key="RowSpacing" TargetType="VerticalStackLayout">
+        <Setter Property="Spacing" Value="12" />
+    </Style>
+
+    <!--
+        The "Starts 31 Aug" pill. Outline rather than filled — ARC uses it as
+        an aside, and a filled chip would compete with the count badge.
+    -->
+    <Style x:Key="Chip" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="Stroke" Value="{AppThemeBinding Light={StaticResource FieldBorder}, Dark={StaticResource FieldBorderDark}}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="HorizontalOptions" Value="Start" />
+        <Setter Property="Margin" Value="0,5,0,0" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 10" />
+    </Style>
+
+    <Style x:Key="ChipText" TargetType="Label">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
+    </Style>
+
+    <!-- ==================== Class cards ==================== -->
+
+    <Style x:Key="ClassCard" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource CardBackground}, Dark={StaticResource CardBackgroundDark}}" />
+        <Setter Property="Stroke" Value="{AppThemeBinding Light={StaticResource CardBorder}, Dark={StaticResource CardBorderDark}}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 4" />
+    </Style>
+
+    <!-- Stands in for ARC's photographic banner. Flat colour, no upload needed. -->
+    <Style x:Key="ClassCardBanner" TargetType="BoxView">
+        <Setter Property="HeightRequest" Value="56" />
+    </Style>
+
+    <Style x:Key="ClassCardTitle" TargetType="Label">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource LinkText}, Dark={StaticResource LinkTextDark}}" />
+        <Setter Property="LineBreakMode" Value="TailTruncation" />
+        <Setter Property="MaxLines" Value="2" />
+    </Style>
+
+    <Style x:Key="ClassCardMeta" TargetType="Label">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource MetaText}, Dark={StaticResource MetaTextDark}}" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+        <Setter Property="LineBreakMode" Value="TailTruncation" />
+    </Style>
+
+    <!-- ==================== Timetable ==================== -->
+
+    <!--
+        A period, marked with a coloured spine in the subject's banner colour so
+        the timetable and the class cards agree visually.
+    -->
+    <Style x:Key="PeriodSpine" TargetType="BoxView">
+        <Setter Property="WidthRequest" Value="3" />
+        <Setter Property="Margin" Value="0,0,9,0" />
+    </Style>
+
+    <Style x:Key="PeriodSubject" TargetType="Label">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextPrimary}, Dark={StaticResource TextPrimaryDark}}" />
+    </Style>
+
+    <Style x:Key="PeriodDetail" TargetType="Label">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
+    </Style>
+
+    <!-- ==================== Navigation chrome ==================== -->
+
+    <Style x:Key="NavBar" TargetType="Grid">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource NavBackground}, Dark={StaticResource NavBackgroundDark}}" />
+        <!-- 52 on the left clears the floating rail, same as the content below. -->
+        <Setter Property="Padding" Value="52,10,14,10" />
+        <Setter Property="ColumnSpacing" Value="12" />
+    </Style>
+
+    <Style x:Key="NavWordmark" TargetType="Label">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="{StaticResource BrandDark}" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
+    <!-- The green band under the nav. ARC's most recognisable single element. -->
+    <Style x:Key="NavRuleBar" TargetType="BoxView">
+        <Setter Property="HeightRequest" Value="3" />
+        <Setter Property="Color" Value="{StaticResource NavRule}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+    </Style>
+
+    <!-- A round shortcut button in the second nav row. -->
+    <Style x:Key="NavShortcut" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{StaticResource NavIconFill}" />
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="WidthRequest" Value="42" />
+        <Setter Property="HeightRequest" Value="42" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalOptions" Value="Center" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 21" />
+    </Style>
+
+    <Style x:Key="NavShortcutGlyph" TargetType="Label">
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="TextColor" Value="{StaticResource White}" />
+        <Setter Property="HorizontalOptions" Value="Center" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
+    <Style x:Key="NavShortcutLabel" TargetType="Label">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource MetaText}, Dark={StaticResource MetaTextDark}}" />
+        <Setter Property="HorizontalOptions" Value="Center" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+    </Style>
+
+    <!-- The user's initials tile, top right. Square in ARC, not a circle. -->
+    <Style x:Key="AvatarTile" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{StaticResource BrandBright}" />
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="WidthRequest" Value="30" />
+        <Setter Property="HeightRequest" Value="30" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="VerticalOptions" Value="Center" />
+        <Setter Property="StrokeShape" Value="Rectangle" />
+    </Style>
+
+    <Style x:Key="AvatarInitials" TargetType="Label">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextColor" Value="{StaticResource White}" />
+        <Setter Property="HorizontalOptions" Value="Center" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
+    <!-- ==================== Tool rows ==================== -->
+
+    <!--
+        A navigable row inside a widget: title, one line of explanation, and a
+        chevron. Used across the teacher and admin consoles in place of a
+        stack of buttons, which is what those screens had before and which gave
+        every destination equal visual weight.
+    -->
+    <Style x:Key="ToolRowTitle" TargetType="Label">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource LinkText}, Dark={StaticResource LinkTextDark}}" />
+    </Style>
+
+    <Style x:Key="ToolRowChevron" TargetType="Label">
+        <Setter Property="Text" Value="&#x203A;" />
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextMuted}, Dark={StaticResource TextMutedDark}}" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
+    <!-- ==================== Tiles ==================== -->
+
+    <!--
+        The default way to present a collection: a wrapped grid of tiles rather
+        than a stack of full-width rows. Tiles scan faster, use the width a
+        tablet or desktop window actually has, and give each item a consistent
+        footprint instead of letting a long title dominate the list.
+
+        Layout: put these inside a FlexLayout with Wrap="Wrap". Tiles are a
+        FIXED width and wrap to fill — two per row on a phone, four or more on a
+        wide window. FlexLayout Basis percentages were the alternative, but they
+        collapse awkwardly at narrow widths and can't express a minimum.
+
+        Where a LIST is still correct, and why:
+          * the contents tree on a unit page — depth and order carry meaning
+          * the teacher's material rows — they have up/down reordering, which a
+            wrapped grid makes ambiguous
+          * admin user and enrolment lists — long, searchable and virtualised
+    -->
+    <Style x:Key="TileGrid" TargetType="FlexLayout">
+        <Setter Property="Wrap" Value="Wrap" />
+        <Setter Property="Direction" Value="Row" />
+        <Setter Property="JustifyContent" Value="Start" />
+        <Setter Property="AlignItems" Value="Start" />
+    </Style>
+
+    <!--
+        One tile. 132 wide, and that number is arithmetic rather than taste.
+        On the narrowest phone worth supporting (360dp):
+
+            screen                          360
+            less content padding left (50)  310   clears the 44 floating rail
+            less content padding right (8)  302
+            less widget padding (28)        274   usable
+
+            two tiles plus an 8 gap = 272         fits
+
+        At 168, the old value, two tiles needed 344 — so every grid collapsed to
+        a single column on every phone. Widen this and that returns. Anything
+        wider than 360dp simply fits more per row.
+    -->
+    <Style x:Key="Tile" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource CardBackground}, Dark={StaticResource CardBackgroundDark}}" />
+        <Setter Property="Stroke" Value="{AppThemeBinding Light={StaticResource CardBorder}, Dark={StaticResource CardBorderDark}}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="WidthRequest" Value="132" />
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 6" />
+    </Style>
+
+    <!--
+        Full-row tile, for content carrying a line of prose — an announcement
+        body at 132px is about four words a line, which is unreadable.
+        274 fills the usable width exactly on a 360dp phone, and two of these
+        fit side by side from about 580dp up.
+    -->
+    <Style x:Key="TileWide" TargetType="Border" BasedOn="{StaticResource Tile}">
+        <Setter Property="WidthRequest" Value="274" />
+    </Style>
+
+    <!-- The coloured strip along the top of a tile, carrying its category. -->
+    <Style x:Key="TileAccent" TargetType="BoxView">
+        <Setter Property="HeightRequest" Value="4" />
+    </Style>
+
+    <Style x:Key="TileBody" TargetType="VerticalStackLayout">
+        <Setter Property="Padding" Value="9,9" />
+        <Setter Property="Spacing" Value="2" />
+    </Style>
+
+    <Style x:Key="TileTitle" TargetType="Label">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource LinkText}, Dark={StaticResource LinkTextDark}}" />
+        <Setter Property="LineBreakMode" Value="TailTruncation" />
+        <Setter Property="MaxLines" Value="2" />
+    </Style>
+
+    <Style x:Key="TileMeta" TargetType="Label">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource MetaText}, Dark={StaticResource MetaTextDark}}" />
+        <Setter Property="LineBreakMode" Value="TailTruncation" />
+        <Setter Property="MaxLines" Value="2" />
+    </Style>
+
+    <Style x:Key="TileMetaOverdue" TargetType="Label" BasedOn="{StaticResource TileMeta}">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource OverdueText}, Dark={StaticResource OverdueTextDark}}" />
+        <Setter Property="FontAttributes" Value="Bold" />
+    </Style>
+
+    <Style x:Key="TileSubtle" TargetType="Label">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
+        <Setter Property="LineBreakMode" Value="TailTruncation" />
+        <Setter Property="MaxLines" Value="3" />
+    </Style>
+
+    <!--
+        The large figure on a tile — a mark, a count, a score line. Big enough
+        to read at a glance, which is the point of tiling grades rather than
+        listing them.
+    -->
+    <Style x:Key="TileValue" TargetType="Label">
+        <Setter Property="FontSize" Value="19" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextPrimary}, Dark={StaticResource TextPrimaryDark}}" />
+    </Style>
+
+    <!-- Small caps-ish category label at the top of a tile. -->
+    <Style x:Key="TileKicker" TargetType="Label">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextMuted}, Dark={StaticResource TextMutedDark}}" />
+    </Style>
+
+    <Style x:Key="TileGlyph" TargetType="Label">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
+    </Style>
+
+    <!-- ==================== Icon rail ==================== -->
+
+    <!--
+        A narrow always-visible navigation strip down the left of the dashboard.
+        Collapsed it shows icons only; tapping the menu button widens it to show
+        labels beside them.
+
+        56px collapsed is deliberate: it clears the 44px minimum touch target
+        with room for padding, while leaving a phone enough width for the
+        widgets beside it.
+    -->
+    <Style x:Key="IconRail" TargetType="VerticalStackLayout">
+        <Setter Property="BackgroundColor" Value="{StaticResource BrandDark}" />
+        <Setter Property="Padding" Value="0,10" />
+        <Setter Property="Spacing" Value="2" />
+    </Style>
+
+    <Style x:Key="RailButton" TargetType="Grid">
+        <Setter Property="Padding" Value="0,9" />
+        <Setter Property="ColumnSpacing" Value="8" />
+    </Style>
+
+    <Style x:Key="RailGlyph" TargetType="Label">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="TextColor" Value="{StaticResource White}" />
+        <Setter Property="HorizontalOptions" Value="Center" />
+        <Setter Property="VerticalOptions" Value="Center" />
+        <!-- Matches DashboardShellViewModel.CollapsedRailWidth. -->
+        <Setter Property="WidthRequest" Value="44" />
+        <Setter Property="HorizontalTextAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="RailLabel" TargetType="Label">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{StaticResource White}" />
+        <Setter Property="VerticalOptions" Value="Center" />
+        <Setter Property="LineBreakMode" Value="TailTruncation" />
+    </Style>
+
+    <!-- ==================== Course banner ==================== -->
+
+    <!--
+        The photo strip at the top of a class page with the course title over
+        it. Flat brand colour rather than photography — schools don't have
+        per-course imagery, and a solid banner in the class's own colour does
+        the same identifying job.
+    -->
+    <Style x:Key="CourseBanner" TargetType="Grid">
+        <Setter Property="HeightRequest" Value="120" />
+        <Setter Property="Padding" Value="20,0" />
+    </Style>
+
+    <Style x:Key="CourseBannerTitle" TargetType="Label">
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="{StaticResource White}" />
+        <Setter Property="VerticalOptions" Value="Center" />
+        <Setter Property="MaxLines" Value="3" />
+        <Setter Property="LineBreakMode" Value="TailTruncation" />
+    </Style>
+
+    <!-- ==================== Progress ==================== -->
+
+    <!--
+        The thin bar under a unit card. Two BoxViews: a full-width track and a
+        fill on top whose width comes from a proportional ratio. MAUI has a
+        ProgressBar, but its rendering differs enough between Android and
+        Windows that the fill height and colour aren't reliably controllable.
+    -->
+    <Style x:Key="ProgressTrack" TargetType="BoxView">
+        <Setter Property="HeightRequest" Value="4" />
+        <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource CardBorder}, Dark={StaticResource CardBorderDark}}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="HorizontalOptions" Value="Fill" />
+    </Style>
+
+    <Style x:Key="ProgressFill" TargetType="BoxView">
+        <Setter Property="HeightRequest" Value="4" />
+        <Setter Property="Color" Value="{StaticResource BrandBright}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="HorizontalOptions" Value="Start" />
+    </Style>
+
+    <Style x:Key="ProgressLabel" TargetType="Label">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
+        <Setter Property="Margin" Value="0,5,0,0" />
+    </Style>
+
+    <!-- ==================== Contents tree ==================== -->
+
+    <!--
+        The searchable table of contents down the left of a unit page. Rows
+        carry a left accent bar; the open unit gets a heavier border, matching
+        ARC's treatment.
+    -->
+    <Style x:Key="TocPanel" TargetType="VerticalStackLayout">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource CardBackground}, Dark={StaticResource CardBackgroundDark}}" />
+        <Setter Property="Padding" Value="0,6" />
+        <Setter Property="Spacing" Value="0" />
+    </Style>
+
+    <Style x:Key="TocUnitLabel" TargetType="Label">
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource LinkText}, Dark={StaticResource LinkTextDark}}" />
+    </Style>
+
+    <Style x:Key="TocThemeLabel" TargetType="Label">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextPrimary}, Dark={StaticResource TextPrimaryDark}}" />
+    </Style>
+
+    <Style x:Key="TocItemLabel" TargetType="Label">
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextPrimary}, Dark={StaticResource TextPrimaryDark}}" />
+    </Style>
+
+    <Style x:Key="TocProgress" TargetType="Label">
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource MetaText}, Dark={StaticResource MetaTextDark}}" />
+    </Style>
+
+    <!-- The amber spine ARC puts against every contents row. -->
+    <Style x:Key="TocAccent" TargetType="BoxView">
+        <Setter Property="WidthRequest" Value="3" />
+        <Setter Property="Color" Value="{StaticResource MetaText}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+    </Style>
+
+    <!-- The tinted intro box at the top of a unit's content pane. -->
+    <Style x:Key="UnitIntro" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{StaticResource Secondary}" />
+        <Setter Property="Stroke" Value="{StaticResource BrandBright}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Padding" Value="14" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 4" />
+    </Style>
+
+    <!-- ==================== Shared bits ==================== -->
+
+    <!-- "View all classes (9)" — the trailing link at the foot of a widget. -->
+    <Style x:Key="WidgetFooterLink" TargetType="Label">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource LinkText}, Dark={StaticResource LinkTextDark}}" />
+        <Setter Property="Margin" Value="0,12,0,0" />
+    </Style>
+
+    <!-- Empty state copy. Sits inside a WidgetInset. -->
+    <Style x:Key="EmptyStateText" TargetType="Label">
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
+    </Style>
+
+    <Style x:Key="PageCanvas" TargetType="ScrollView">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource PageBackground}, Dark={StaticResource PageBackgroundDark}}" />
+    </Style>
+
+    <!-- Primary action. Square-ish corners to match ARC's flat chrome. -->
+    <Style x:Key="BrandButton" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="{StaticResource BrandDark}" />
+        <Setter Property="TextColor" Value="{StaticResource White}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Padding" Value="16,10" />
+        <Setter Property="MinimumHeightRequest" Value="44" />
+    </Style>
+
+    <Style x:Key="BrandButtonOutline" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="TextColor" Value="{StaticResource BrandDark}" />
+        <Setter Property="BorderColor" Value="{StaticResource BrandDark}" />
+        <Setter Property="BorderWidth" Value="1" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Padding" Value="16,10" />
+        <Setter Property="MinimumHeightRequest" Value="44" />
+    </Style>
+
+</ResourceDictionary>

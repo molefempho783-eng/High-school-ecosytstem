@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.AccountPage"
+             x:DataType="viewModels:AccountViewModel"
+             Title="My account">
+    <ScrollView Style="{StaticResource PageCanvas}">
+        <VerticalStackLayout Spacing="0">
+            <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                <Label Text="Account" FontSize="20" FontAttributes="Bold"
+                       TextColor="{StaticResource White}" />
+                <Label Text="Your profile and sign-in" FontSize="12"
+                       TextColor="{StaticResource White}" Opacity="0.85" />
+            </VerticalStackLayout>
+            <BoxView Style="{StaticResource NavRuleBar}" />
+
+            <VerticalStackLayout Padding="12" Spacing="12">
+
+                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+                <Border Style="{StaticResource WidgetInset}"
+                        BackgroundColor="{StaticResource WarningFill}"
+                        IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}">
+                    <Label Text="{Binding StatusMessage}" Style="{StaticResource EmptyStateText}" />
+                </Border>
+
+                <!-- ============ Who you are ============ -->
+
+                <Border Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,10">
+                            <Label Text="Signed in as" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+
+                        <Label Text="{Binding Email}" FontSize="15" />
+
+                        <Border Style="{StaticResource WidgetInset}" Margin="0,10,0,0"
+                                BackgroundColor="{StaticResource SuccessFill}"
+                                IsVisible="{Binding IsEmailVerified}">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="9">
+                                <Label Grid.Column="0" Text="&#x2713;" FontSize="15"
+                                       TextColor="{StaticResource SuccessText}" VerticalOptions="Center" />
+                                <Label Grid.Column="1" Text="Your email is verified." FontSize="12.5"
+                                       TextColor="{StaticResource SuccessText}" VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource WidgetInset}" Margin="0,10,0,0"
+                                BackgroundColor="{StaticResource WarningFill}"
+                                IsVisible="{Binding NeedsVerification}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Verify your email to finish setting up your account."
+                                       Style="{StaticResource EmptyStateText}" />
+                                <Button Text="Send verification email"
+                                        Style="{StaticResource BrandButtonOutline}"
+                                        HorizontalOptions="Start"
+                                        Command="{Binding SendVerificationCommand}" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Your name ============ -->
+
+                <Border Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,4">
+                            <Label Text="Your name" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+                        <Label Text="Shown to teachers and admins in class lists, and on anything you post."
+                               Style="{StaticResource RowSubtle}" Margin="0,0,0,10" />
+
+                        <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                            <Entry Placeholder="Full name" Text="{Binding DisplayName}" />
+                        </Border>
+
+                        <Button Text="Save name" Style="{StaticResource BrandButton}"
+                                HorizontalOptions="Start" Margin="0,10,0,0"
+                                Command="{Binding SaveNameCommand}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Sign out ============ -->
+
+                <Border Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Sign out" Style="{StaticResource WidgetTitle}" />
+                        <Label Text="You'll need your email and password to sign back in."
+                               Style="{StaticResource RowSubtle}" />
+                        <Button Text="Sign out" Style="{StaticResource BrandButtonOutline}"
+                                HorizontalOptions="Start" Command="{Binding SignOutCommand}" />
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

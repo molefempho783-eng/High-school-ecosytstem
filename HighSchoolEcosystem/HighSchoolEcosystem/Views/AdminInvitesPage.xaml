@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.AdminInvitesPage"
+             x:DataType="viewModels:AdminInvitesViewModel"
+             Title="Roster">
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Padding="20,0,20,20" RowSpacing="12">
+
+        <VerticalStackLayout Grid.Row="0" Spacing="0" Margin="-20,-20,-20,0">
+            <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                <Label Text="Roster and invites" FontSize="20" FontAttributes="Bold"
+                       TextColor="{StaticResource White}" />
+                <Label Text="Pre-assign a role before someone signs up" FontSize="12"
+                       TextColor="{StaticResource White}" Opacity="0.85" />
+            </VerticalStackLayout>
+            <BoxView Style="{StaticResource NavRuleBar}" />
+        </VerticalStackLayout>
+
+
+        <VerticalStackLayout Grid.Row="1" Spacing="8">
+            <Label Text="Pre-assign a role by email. It applies the moment that person signs up."
+                   Style="{StaticResource RowSubtle}" />
+            <Entry Placeholder="name@school.org" Keyboard="Email" Text="{Binding NewEmail}" />
+            <Picker ItemsSource="{Binding AvailableRoles}" SelectedItem="{Binding NewRole}" />
+            <Grid ColumnDefinitions="Auto,*">
+                <CheckBox Grid.Column="0" IsChecked="{Binding NewIsJournalist}" />
+                <Label Grid.Column="1" Text="Also a journalist (school newspaper)"
+                       VerticalOptions="Center" FontSize="14" />
+            </Grid>
+            <Button Text="Add to roster" Command="{Binding AddCommand}" />
+            <Label Text="Staff and parent roles also require the person to verify their email."
+                   Style="{StaticResource RowSubtle}" />
+        </VerticalStackLayout>
+
+        <VerticalStackLayout Grid.Row="2" Spacing="4">
+            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+            <Label Text="{Binding StatusMessage}" FontSize="13" />
+        </VerticalStackLayout>
+
+        <RefreshView Grid.Row="3" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}">
+            <CollectionView ItemsSource="{Binding Invites}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="viewModels:InviteRow">
+                        <Grid Padding="4,12" ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                <Label Text="{Binding Email}" FontSize="15" />
+                                <Label Text="{Binding Subtitle}" Style="{StaticResource RowSubtle}" />
+                            </VerticalStackLayout>
+                            <Button Grid.Column="1" Text="Remove" FontSize="13"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:AdminInvitesViewModel}}, Path=DeleteCommand}"
+                                    CommandParameter="{Binding .}" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </RefreshView>
+    </Grid>
+</ContentPage>

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    The navigation rail, declared once and used by every role's dashboard.
+
+    It has no BindableProperties: a ContentView inherits its parent's
+    BindingContext, so dropping this into any page whose view model derives from
+    DashboardShellViewModel just works.
+
+    IT FLOATS. The rail is overlaid on the content, not given its own Grid
+    column, so expanding it covers the page rather than squeezing it. Pages put
+    it in the same cell as their ScrollView, declared after it so it draws on
+    top, and inset their content by CollapsedRailWidth so nothing hides beneath.
+
+    WIDTH LIVES ON THE CONTENTVIEW, not the ScrollView inside it. A ScrollView
+    has no intrinsic width to report, so leaving the width on the inner control
+    made the whole thing measure to zero and the rail vanished.
+
+    Items come from RailItems as data, so a dashboard adds a destination in one
+    line of C# rather than twelve lines of duplicated XAML.
+-->
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Controls.NavigationRail"
+             x:DataType="viewModels:DashboardShellViewModel"
+             WidthRequest="{Binding RailWidth}"
+             MinimumWidthRequest="44"
+             BackgroundColor="{StaticResource BrandDark}"
+             HorizontalOptions="Start"
+             VerticalOptions="Fill">
+    <!-- A shadow, so the rail reads as sitting above the page rather than as a
+         stripe painted on it. -->
+    <ContentView.Shadow>
+        <Shadow Brush="{StaticResource Black}" Opacity="0.25"
+                Radius="8" Offset="2,0" />
+    </ContentView.Shadow>
+    <ScrollView VerticalScrollBarVisibility="Never" HorizontalScrollBarVisibility="Never">
+        <VerticalStackLayout Style="{StaticResource IconRail}">
+
+            <!-- Menu toggle. Widens the rail to reveal labels. -->
+            <Grid Style="{StaticResource RailButton}" ColumnDefinitions="Auto,*">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding ToggleRailCommand}" />
+                </Grid.GestureRecognizers>
+                <Label Grid.Column="0" Text="&#x2261;" Style="{StaticResource RailGlyph}" />
+                <Label Grid.Column="1" Text="Menu" Style="{StaticResource RailLabel}"
+                       IsVisible="{Binding IsRailExpanded}" />
+            </Grid>
+
+            <BoxView HeightRequest="1" Color="{StaticResource BrandBright}" Margin="8,4" />
+
+            <VerticalStackLayout BindableLayout.ItemsSource="{Binding RailItems}" Spacing="0">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="viewModels:RailItem">
+                        <VerticalStackLayout Spacing="0">
+                            <BoxView HeightRequest="1" Color="{StaticResource BrandBright}"
+                                     Margin="8,4" IsVisible="{Binding StartsGroup}" />
+                            <Grid Style="{StaticResource RailButton}" ColumnDefinitions="Auto,*">
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding Command}" />
+                                </Grid.GestureRecognizers>
+                                <Label Grid.Column="0" Text="{Binding Glyph}"
+                                       Style="{StaticResource RailGlyph}" />
+                                <!-- IsExpanded lives on the item; a RelativeSource
+                                     binding to the parent view model doesn't
+                                     resolve reliably under compiled bindings. -->
+                                <Label Grid.Column="1" Text="{Binding Label}"
+                                       Style="{StaticResource RailLabel}"
+                                       IsVisible="{Binding IsExpanded}" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentView>

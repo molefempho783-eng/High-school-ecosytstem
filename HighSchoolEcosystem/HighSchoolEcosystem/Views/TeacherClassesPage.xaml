@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.TeacherClassesPage"
+             x:DataType="viewModels:TeacherClassesViewModel"
+             Title="My classes">
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Padding="20,0,20,20" RowSpacing="12">
+
+        <VerticalStackLayout Grid.Row="0" Spacing="0" Margin="-20,-20,-20,0">
+            <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                <Label Text="My classes" FontSize="20" FontAttributes="Bold"
+                       TextColor="{StaticResource White}" />
+                <Label Text="Create classes and enrol students" FontSize="12"
+                       TextColor="{StaticResource White}" Opacity="0.85" />
+            </VerticalStackLayout>
+            <BoxView Style="{StaticResource NavRuleBar}" />
+        </VerticalStackLayout>
+
+
+        <VerticalStackLayout Grid.Row="1" Spacing="8">
+            <Label Text="New class" FontAttributes="Bold" />
+            <Entry Placeholder="Class name, e.g. Grade 10A Mathematics" Text="{Binding NewName}" />
+            <Entry Placeholder="Subject, e.g. Mathematics" Text="{Binding NewSubject}" />
+            <Entry Placeholder="Room (optional)" Text="{Binding NewRoom}" />
+            <Button Text="Create class" Command="{Binding CreateCommand}" />
+        </VerticalStackLayout>
+
+        <VerticalStackLayout Grid.Row="2" Spacing="4">
+            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+            <Label Text="{Binding StatusMessage}" FontSize="13" />
+        </VerticalStackLayout>
+
+        <RefreshView Grid.Row="3" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}">
+            <CollectionView ItemsSource="{Binding Classes}" SelectionMode="Single"
+                            SelectionChanged="OnClassSelected">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="viewModels:TeacherClassRow">
+                        <Grid Padding="4,14" ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                <Label Text="{Binding Name}" FontSize="16" />
+                                <Label Text="{Binding Subtitle}" Style="{StaticResource RowSubtle}" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1" Text="›" FontSize="22" Opacity="0.4" VerticalOptions="Center" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+                <CollectionView.EmptyView>
+                    <Label Text="No classes yet. Create one above." Style="{StaticResource RowSubtle}" />
+                </CollectionView.EmptyView>
+            </CollectionView>
+        </RefreshView>
+    </Grid>
+</ContentPage>

@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    A single piece of work, opened for submission.
+
+    Restyled onto the ARC widget vocabulary, but the binding structure is
+    unchanged on purpose. Two things here are load-bearing and were not touched:
+
+      * the RadioButton's GroupName binds to the question ID, which is what
+        stops picking an answer in one question clearing another; and
+      * BindableLayout, not CollectionView — a CollectionView nested in a
+        ScrollView collapses to zero height on mobile.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.StudentAssignmentPage"
+             x:DataType="viewModels:StudentAssignmentViewModel"
+             Title="Assignment">
+    <ScrollView Style="{StaticResource PageCanvas}">
+        <VerticalStackLayout Spacing="0">
+
+            <!-- Brand header carrying the assignment's identity. -->
+            <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}"
+                                 Padding="16,18" Spacing="3">
+                <Label Text="{Binding Title}" FontSize="20" FontAttributes="Bold"
+                       TextColor="{StaticResource White}" />
+                <Label Text="{Binding ClassName}" FontSize="13"
+                       TextColor="{StaticResource White}" Opacity="0.85" />
+                <Label Text="{Binding KindAndDue}" FontSize="12"
+                       TextColor="{StaticResource White}" Opacity="0.75" />
+            </VerticalStackLayout>
+            <BoxView Style="{StaticResource NavRuleBar}" />
+
+            <VerticalStackLayout Padding="12" Spacing="12">
+
+                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+                <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
+                       IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
+
+                <!-- ============ Grade ============ -->
+
+                <Border Style="{StaticResource Widget}" IsVisible="{Binding IsMarked}">
+                    <VerticalStackLayout Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Grid.Column="0" Text="{Binding GradeLabel}"
+                                   Style="{StaticResource WidgetTitle}" />
+                        </Grid>
+                        <BoxView Style="{StaticResource SectionRule}" />
+                        <Label Text="{Binding Feedback}" Style="{StaticResource RowSubtle}"
+                               IsVisible="{Binding HasFeedback}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Instructions ============ -->
+
+                <Border Style="{StaticResource Widget}" IsVisible="{Binding HasDescription}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,10">
+                            <Label Text="Instructions" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+                        <Label Text="{Binding Description}" FontSize="14" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Questions ============ -->
+
+                <Border Style="{StaticResource Widget}" IsVisible="{Binding HasQuestions}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,4">
+                            <Label Text="Questions" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+                        <Label Text="Marked automatically as soon as you submit."
+                               Style="{StaticResource RowSubtle}" Margin="0,0,0,12" />
+
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding Questions}"
+                                             Spacing="16">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:AnswerableQuestion">
+                                    <VerticalStackLayout Spacing="0">
+
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,2">
+                                            <Label Grid.Column="0" Text="{Binding Heading}"
+                                                   Style="{StaticResource SectionHeading}" />
+                                            <Label Grid.Column="1" Text="{Binding PointsLabel}"
+                                                   Style="{StaticResource RowMeta}" />
+                                        </Grid>
+                                        <BoxView Style="{StaticResource SectionRule}" />
+
+                                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding Options}"
+                                                             Spacing="2" Margin="2,0,0,0">
+                                            <BindableLayout.ItemTemplate>
+                                                <DataTemplate x:DataType="viewModels:AnswerOption">
+                                                    <RadioButton Content="{Binding Display}"
+                                                                 GroupName="{Binding GroupName}"
+                                                                 IsChecked="{Binding IsSelected}" />
+                                                </DataTemplate>
+                                            </BindableLayout.ItemTemplate>
+                                        </VerticalStackLayout>
+
+                                        <Border Style="{StaticResource Chip}"
+                                                IsVisible="{Binding NotAnswered}">
+                                            <Label Text="Not answered yet"
+                                                   Style="{StaticResource ChipText}" />
+                                        </Border>
+
+                                    </VerticalStackLayout>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Your answer ============ -->
+
+                <!-- Hidden entirely on a multiple-choice paper: there is nothing
+                     to type and nothing to attach, so the card would be a
+                     heading over empty space. -->
+                <Border Style="{StaticResource Widget}" IsVisible="{Binding HasAnswerBox}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,4">
+                            <Label Text="Your answer" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+                        <!-- What the teacher asked for, in their terms. -->
+                        <Label Text="{Binding SubmissionHint}"
+                               Style="{StaticResource RowSubtle}" Margin="0,0,0,10" />
+
+                        <!-- Typed answer. Hidden when the teacher wants a file only. -->
+                        <Border Style="{StaticResource WidgetInset}" Padding="8,2"
+                                IsVisible="{Binding AcceptsWritten}">
+                            <Editor Placeholder="Type your answer here"
+                                    Text="{Binding WrittenAnswer}" HeightRequest="160" />
+                        </Border>
+
+                        <!-- File. Only when the teacher allows it and Storage is set up. -->
+                        <VerticalStackLayout Spacing="8" Margin="0,10,0,0"
+                                             IsVisible="{Binding AcceptsFile}">
+                            <Label Text="Attach a file" Style="{StaticResource SectionHeading}"
+                                   FontSize="13" />
+                            <Label Text="A document, a scan, or a photo of your work. Up to 25 MB."
+                                   Style="{StaticResource RowSubtle}" />
+
+                            <Button Text="Choose a file" Style="{StaticResource BrandButtonOutline}"
+                                    HorizontalOptions="Start" Clicked="OnChooseFileClicked" />
+
+                            <!-- Picked but not yet sent -->
+                            <Border Style="{StaticResource WidgetInset}"
+                                    BackgroundColor="{StaticResource WarningFill}"
+                                    IsVisible="{Binding HasPickedFile}">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <VerticalStackLayout Grid.Column="0" Spacing="1">
+                                        <Label Text="{Binding PickedFileLabel}" FontSize="12.5"
+                                               FontAttributes="Bold" />
+                                        <Label Text="Not sent yet — tap Submit below."
+                                               Style="{StaticResource RowSubtle}" />
+                                    </VerticalStackLayout>
+                                    <Button Grid.Column="1" Text="Remove"
+                                            Style="{StaticResource BrandButtonOutline}"
+                                            FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                            Command="{Binding ClearFileCommand}" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Already on record -->
+                            <Border Style="{StaticResource WidgetInset}"
+                                    BackgroundColor="{StaticResource SuccessFill}"
+                                    IsVisible="{Binding HasSubmittedFile}">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="9">
+                                    <Label Grid.Column="0" Text="&#x2713;" FontSize="15"
+                                           TextColor="{StaticResource SuccessText}"
+                                           VerticalOptions="Center" />
+                                    <VerticalStackLayout Grid.Column="1" Spacing="1">
+                                        <Label Text="{Binding SubmittedFileLabel}" FontSize="12.5"
+                                               TextColor="{StaticResource SuccessText}" />
+                                        <Label Text="Handed in. Choosing another file replaces it."
+                                               FontSize="11"
+                                               TextColor="{StaticResource SuccessText}" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Submit ============ -->
+
+                <Border Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="9">
+                        <Button Text="{Binding SubmitLabel}" Style="{StaticResource BrandButton}"
+                                Command="{Binding SubmitCommand}"
+                                IsEnabled="{Binding CanSubmit}" />
+                        <!-- The hint moves here when there is no answer card to
+                             carry it, so a multiple-choice paper still says what
+                             is expected. -->
+                        <Label Text="{Binding SubmissionHint}" Style="{StaticResource RowSubtle}"
+                               HorizontalTextAlignment="Center"
+                               IsVisible="{Binding HasAnswerBox, Converter={StaticResource InvertedBool}}" />
+                        <Label Text="{Binding SubmissionState}" Style="{StaticResource RowSubtle}"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="You can resubmit until your teacher marks it."
+                               Style="{StaticResource RowSubtle}" FontSize="11.5"
+                               HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

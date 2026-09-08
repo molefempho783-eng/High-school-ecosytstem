@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    Sign in. ARC frames its login as a single card on the brand colour, with
+    the institution's wordmark above it — so that's what this does.
+
+    The school name is hardcoded here rather than bound: the view model has no
+    profile to read it from until after sign-in, and one school per build means
+    it's a constant anyway. Change it alongside the palette when onboarding.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.LoginPage"
+             x:DataType="viewModels:LoginViewModel"
+             Title="Sign in">
+    <ScrollView Style="{StaticResource PageCanvas}">
+        <Grid RowDefinitions="Auto,*">
+
+            <!-- Brand band. Deep enough that the card overlaps it slightly. -->
+            <BoxView Grid.Row="0" HeightRequest="150"
+                     Color="{StaticResource BrandDark}" />
+
+            <VerticalStackLayout Grid.Row="0" Grid.RowSpan="2" Padding="20,0"
+                                 Spacing="0" VerticalOptions="Start">
+
+                <VerticalStackLayout Padding="0,38,0,26" Spacing="4">
+                    <Label Text="Northwood High" FontSize="26" FontAttributes="Bold"
+                           TextColor="{StaticResource White}" />
+                    <Label Text="Student and staff portal" FontSize="14"
+                           TextColor="{StaticResource White}" Opacity="0.85" />
+                </VerticalStackLayout>
+
+                <Border Style="{StaticResource Widget}" Padding="20,22">
+                    <VerticalStackLayout Spacing="14">
+                        <Label Text="Sign in" Style="{StaticResource WidgetTitle}" />
+                        <Label Text="Use the email address your school has on file."
+                               Style="{StaticResource RowSubtle}" />
+
+                        <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                            <Entry Placeholder="Email address" Keyboard="Email"
+                                   Text="{Binding Email}" />
+                        </Border>
+
+                        <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                            <Entry Placeholder="Password" IsPassword="True"
+                                   Text="{Binding Password}" />
+                        </Border>
+
+                        <Button Text="Sign in" Style="{StaticResource BrandButton}"
+                                Command="{Binding SignInCommand}" />
+
+                        <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+                        <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
+                               IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
+
+                        <BoxView Style="{StaticResource SectionRule}" />
+
+                        <Button Text="Create an account" Style="{StaticResource BrandButtonOutline}"
+                                Clicked="OnRegisterClicked" />
+                        <Label Text="Forgot password?" Style="{StaticResource WidgetFooterLink}"
+                               Margin="0,2,0,0" HorizontalOptions="Center">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnForgotPasswordClicked" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource WidgetCompact}" Margin="0,12,0,24">
+                    <VerticalStackLayout Spacing="9">
+                        <Label Text="Just looking around?" Style="{StaticResource SectionHeading}" />
+                        <Label Text="Browse announcements, sport and the school newspaper without an account."
+                               Style="{StaticResource RowSubtle}" />
+                        <Button Text="Continue as a visitor" Style="{StaticResource BrandButtonOutline}"
+                                Clicked="OnVisitorClicked" />
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </Grid>
+    </ScrollView>
+</ContentPage>

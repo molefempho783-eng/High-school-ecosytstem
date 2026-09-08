@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
+             x:Class="HighSchoolEcosystem.Views.AdminDashboardPage"
+             x:DataType="viewModels:AdminDashboardViewModel"
+             Title="Admin">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Account" Clicked="OnAccountClicked" />
+    </ContentPage.ToolbarItems>
+
+    <!-- Single cell: the rail floats over the content rather than
+         taking a column, so expanding it covers rather than squeezes. -->
+    <Grid>
+
+        <ScrollView x:Name="ContentScroll" Style="{StaticResource PageCanvas}">
+        <VerticalStackLayout Spacing="0">
+
+            <Grid Style="{StaticResource NavBar}" ColumnDefinitions="*,Auto">
+                <VerticalStackLayout Grid.Column="0" VerticalOptions="Center">
+                    <Label Text="{Binding SchoolName}" Style="{StaticResource NavWordmark}" />
+                    <Label Text="Administrator" Style="{StaticResource RowSubtle}" />
+                </VerticalStackLayout>
+                <Label Grid.Column="1" Text="{Binding DisplayName}" FontSize="13"
+                       VerticalOptions="Center" />
+            </Grid>
+            <BoxView Style="{StaticResource NavRuleBar}" />
+
+            <!-- 44 on the left clears the floating rail. -->
+                <VerticalStackLayout Padding="52,12,10,12" Spacing="12">
+
+                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
+                       IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
+
+                <!-- ============ School administration ============ -->
+
+                <Border Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,12">
+                            <Label Text="School administration" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+
+                        <!-- Announcements are composed from the Announcements
+                             section on the dashboard, not from here — the form
+                             sits next to the notices it produces. -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnManageUsersClicked" />
+                            </Grid.GestureRecognizers>
+                            <VerticalStackLayout Grid.Column="0" Spacing="1">
+                                <Label Text="Manage users" Style="{StaticResource ToolRowTitle}" />
+                                <Label Text="Change roles for people who have already registered, and link parents to their children."
+                                       Style="{StaticResource RowSubtle}" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1" Style="{StaticResource ToolRowChevron}" />
+                        </Grid>
+                        <BoxView Style="{StaticResource SectionRule}" />
+
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnInvitesClicked" />
+                            </Grid.GestureRecognizers>
+                            <VerticalStackLayout Grid.Column="0" Spacing="1">
+                                <Label Text="Roster and invites" Style="{StaticResource ToolRowTitle}" />
+                                <Label Text="Pre-assign a role by email so it applies the moment someone signs up."
+                                       Style="{StaticResource RowSubtle}" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1" Style="{StaticResource ToolRowChevron}" />
+                        </Grid>
+                        <BoxView Style="{StaticResource SectionRule}" />
+
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnSettingsClicked" />
+                            </Grid.GestureRecognizers>
+                            <VerticalStackLayout Grid.Column="0" Spacing="1">
+                                <Label Text="School settings" Style="{StaticResource ToolRowTitle}" />
+                                <Label Text="Name and branding colours shown across the app."
+                                       Style="{StaticResource RowSubtle}" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1" Style="{StaticResource ToolRowChevron}" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Other roles ============ -->
+
+                <Border Style="{StaticResource Widget}">
+                    <Border.Triggers>
+                        <MultiTrigger TargetType="Border">
+                            <MultiTrigger.Conditions>
+                                <BindingCondition Binding="{Binding HasPersonalView}" Value="False" />
+                                <BindingCondition Binding="{Binding IsAlsoTeacher}" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter Property="IsVisible" Value="False" />
+                        </MultiTrigger>
+                    </Border.Triggers>
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,12">
+                            <Label Text="Your other roles" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+
+                        <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasPersonalView}">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnPersonalViewClicked" />
+                            </Grid.GestureRecognizers>
+                            <Label Grid.Column="0" Text="{Binding PersonalViewLabel}"
+                                   Style="{StaticResource ToolRowTitle}" />
+                            <Label Grid.Column="1" Style="{StaticResource ToolRowChevron}" />
+                        </Grid>
+
+                        <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsAlsoTeacher}"
+                              Margin="0,10,0,0">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnTeacherToolsClicked" />
+                            </Grid.GestureRecognizers>
+                            <VerticalStackLayout Grid.Column="0" Spacing="1">
+                                <Label Text="Teacher tools" Style="{StaticResource ToolRowTitle}" />
+                                <Label Text="Your classes, assignments and timetable."
+                                       Style="{StaticResource RowSubtle}" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1" Style="{StaticResource ToolRowChevron}" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Not built yet ============ -->
+
+                <Border Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,10">
+                            <Label Text="School content" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+                        <Border Style="{StaticResource WidgetInset}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Announcements · Timetable · Sports · Classes · Gradebook"
+                                       Style="{StaticResource EmptyStateText}" />
+                                <Label Text="These arrive in later milestones — see PLAN.md."
+                                       Style="{StaticResource RowSubtle}" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </VerticalStackLayout>
+        </ScrollView>
+    
+        <!-- Declared last so it draws ON TOP of the content it floats over.
+             Shared with every other role's dashboard — see NavigationRail.xaml. -->
+        <controls:NavigationRail />
+    </Grid>
+</ContentPage>

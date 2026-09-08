@@ -1,0 +1,27 @@
+﻿<?xml version = "1.0" encoding = "UTF-8" ?>
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:HighSchoolEcosystem"
+             xmlns:converters="clr-namespace:HighSchoolEcosystem.Converters"
+             x:Class="HighSchoolEcosystem.App">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Resources/Styles/Colors.xaml" />
+                <ResourceDictionary Source="Resources/Styles/Styles.xaml" />
+                <!-- Must come after Colors and Styles: Widgets builds on both. -->
+                <ResourceDictionary Source="Resources/Styles/Widgets.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!--
+                Registered app-wide rather than per page: almost every screen
+                hides an empty-state box or an error label, and duplicating the
+                declaration in 17 files is how they drift apart.
+            -->
+            <converters:StringNotEmptyConverter x:Key="StringNotEmpty" />
+            <converters:InvertedBoolConverter x:Key="InvertedBool" />
+            <converters:HasItemsConverter x:Key="HasItems" />
+            <converters:NoItemsConverter x:Key="NoItems" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
