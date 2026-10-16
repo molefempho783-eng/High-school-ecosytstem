@@ -10,12 +10,15 @@ public sealed class HomePageResolver : IHomePageResolver
     private readonly IServiceProvider _services;
     private readonly IFirebaseAuthService _auth;
     private readonly IUserProfileService _profiles;
+    private readonly IPushNotificationService _push;
 
-    public HomePageResolver(IServiceProvider services, IFirebaseAuthService auth, IUserProfileService profiles)
+    public HomePageResolver(IServiceProvider services, IFirebaseAuthService auth,
+        IUserProfileService profiles, IPushNotificationService push)
     {
         _services = services;
         _auth = auth;
         _profiles = profiles;
+        _push = push;
     }
 
     public async Task<Page> ResolveHomeAsync(CancellationToken cancellationToken = default)
@@ -26,6 +29,12 @@ public sealed class HomePageResolver : IHomePageResolver
         //
         // Guests browse the public surface on the normal dashboard.
         if (!_auth.IsSignedIn) return _services.GetRequiredService<DashboardPage>();
+
+        // Every signed-in route to the app — startup, sign-in, registration —
+        // comes through here, so this is the one place push is set up. Not
+        // awaited: it may show a permission prompt, and the home page shouldn't
+        // wait behind it.
+        _ = _push.RegisterAsync(cancellationToken);
 
         try
         {

@@ -8,199 +8,262 @@
 -->
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
              xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
              x:Class="HighSchoolEcosystem.Views.SportsPage"
              x:DataType="viewModels:SportsViewModel"
              Title="Sport">
 
-    <RefreshView IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshCommand}">
-        <ScrollView Style="{StaticResource PageCanvas}">
-            <VerticalStackLayout Spacing="0">
+    <!-- A one-button sidebar: the same left edge as the dashboards,
+         carrying the one thing a pushed page needs - a way home. -->
+    <Grid ColumnDefinitions="44,*">
+        <RefreshView Grid.Column="1" IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshCommand}">
+            <ScrollView Style="{StaticResource PageCanvas}">
+                <VerticalStackLayout Spacing="0">
 
-                <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
-                    <Label Text="Sport" FontSize="20" FontAttributes="Bold"
-                           TextColor="{StaticResource White}" />
-                    <Label Text="Fixtures, results and team news" FontSize="13"
-                           TextColor="{StaticResource White}" Opacity="0.85" />
-                </VerticalStackLayout>
-                <BoxView Style="{StaticResource NavRuleBar}" />
+                    <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                        <Label Text="Sport" FontSize="20" FontAttributes="Bold"
+                               TextColor="{StaticResource White}" />
+                        <Label Text="Fixtures, results and team news" FontSize="13"
+                               TextColor="{StaticResource White}" Opacity="0.85" />
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource NavRuleBar}" />
 
-                <VerticalStackLayout Padding="12" Spacing="12">
+                    <VerticalStackLayout Padding="12" Spacing="12">
 
-                    <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
-                    <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
-                           IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
+                        <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                        <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
+                               IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
 
-                    <Button Text="New post" Style="{StaticResource BrandButton}"
-                            HorizontalOptions="Start"
-                            IsVisible="{Binding CanPost}"
-                            Command="{Binding StartCreateCommand}" />
+                        <Button Text="New post" Style="{StaticResource BrandButton}"
+                                HorizontalOptions="Start"
+                                IsVisible="{Binding CanPost}"
+                                Command="{Binding StartCreateCommand}" />
 
-                    <!-- Compose -->
-                    <Border Style="{StaticResource Widget}" IsVisible="{Binding IsFormVisible}">
-                        <VerticalStackLayout Spacing="10">
-                            <Label Text="{Binding FormHeading}" Style="{StaticResource WidgetTitle}" />
+                        <!-- Compose -->
+                        <Border Style="{StaticResource Widget}" IsVisible="{Binding IsFormVisible}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="{Binding FormHeading}" Style="{StaticResource WidgetTitle}" />
 
-                            <Border Style="{StaticResource WidgetInset}" Padding="8,0">
-                                <Picker ItemsSource="{Binding Kinds}" SelectedItem="{Binding NewKind}"
-                                        Title="What kind of post?" />
-                            </Border>
-
-                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
-                                <Entry Placeholder="Title" Text="{Binding NewTitle}" />
-                            </Border>
-
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                                <Border Grid.Column="0" Style="{StaticResource WidgetInset}" Padding="10,2">
-                                    <Entry Placeholder="Sport" Text="{Binding NewSport}" />
+                                <Border Style="{StaticResource WidgetInset}" Padding="8,0">
+                                    <Picker ItemsSource="{Binding Kinds}" SelectedItem="{Binding NewKind}"
+                                            Title="What kind of post?" />
                                 </Border>
-                                <Border Grid.Column="1" Style="{StaticResource WidgetInset}" Padding="10,2">
-                                    <Entry Placeholder="Team" Text="{Binding NewTeam}" />
-                                </Border>
-                            </Grid>
 
-                            <!-- Match-only fields -->
-                            <VerticalStackLayout Spacing="10" IsVisible="{Binding ShowsMatchFields}">
                                 <Border Style="{StaticResource WidgetInset}" Padding="10,2">
-                                    <Entry Placeholder="Opponent" Text="{Binding NewOpponent}" />
+                                    <Entry Placeholder="Title" Text="{Binding NewTitle}" />
                                 </Border>
-                                <Border Style="{StaticResource WidgetInset}" Padding="10,2">
-                                    <Entry Placeholder="Venue" Text="{Binding NewVenue}" />
-                                </Border>
+
                                 <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                                    <Border Grid.Column="0" Style="{StaticResource WidgetInset}" Padding="8,0">
-                                        <DatePicker Date="{Binding NewEventDate}" />
+                                    <Border Grid.Column="0" Style="{StaticResource WidgetInset}" Padding="10,2">
+                                        <Entry Placeholder="Sport" Text="{Binding NewSport}" />
                                     </Border>
-                                    <Border Grid.Column="1" Style="{StaticResource WidgetInset}" Padding="8,0">
-                                        <TimePicker Time="{Binding NewEventTime}" />
+                                    <Border Grid.Column="1" Style="{StaticResource WidgetInset}" Padding="10,2">
+                                        <Entry Placeholder="Team" Text="{Binding NewTeam}" />
                                     </Border>
                                 </Grid>
+
+                                <!-- Match-only fields -->
+                                <VerticalStackLayout Spacing="10" IsVisible="{Binding ShowsMatchFields}">
+                                    <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                        <Entry Placeholder="Opponent" Text="{Binding NewOpponent}" />
+                                    </Border>
+                                    <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                        <Entry Placeholder="Venue" Text="{Binding NewVenue}" />
+                                    </Border>
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                        <Border Grid.Column="0" Style="{StaticResource WidgetInset}" Padding="8,0">
+                                            <DatePicker Date="{Binding NewEventDate}" />
+                                        </Border>
+                                        <Border Grid.Column="1" Style="{StaticResource WidgetInset}" Padding="8,0">
+                                            <TimePicker Time="{Binding NewEventTime}" />
+                                        </Border>
+                                    </Grid>
+                                </VerticalStackLayout>
+
+                                <Border Style="{StaticResource WidgetInset}" Padding="10,2"
+                                        IsVisible="{Binding ShowsScore}">
+                                    <Entry Placeholder="Score, e.g. 24 - 17" Text="{Binding NewScore}" />
+                                </Border>
+
+                                <Border Style="{StaticResource WidgetInset}" Padding="8,2">
+                                    <Editor Placeholder="Report or details" Text="{Binding NewBody}"
+                                            HeightRequest="120" />
+                                </Border>
+
+                                <!-- ============ Picture ============ -->
+
+                                <!-- Hidden entirely when no Storage bucket is
+                                     configured: everything else about a post still
+                                     works, so an option that can't succeed is worse
+                                     than no option. -->
+                                <VerticalStackLayout Spacing="8" Margin="0,4,0,0"
+                                                     IsVisible="{Binding CanAttachImage}">
+                                    <Label Text="Picture" Style="{StaticResource SectionHeading}"
+                                           FontSize="13" />
+                                    <Label Text="One image, up to 8 MB. It shows on the tile and at the top of the article."
+                                           Style="{StaticResource RowSubtle}" />
+
+                                    <!-- What's already on the post being edited. -->
+                                    <Border Style="{StaticResource WidgetInset}" Padding="0"
+                                            IsVisible="{Binding HasExistingImage}">
+                                        <Image Source="{Binding ExistingImageUrl}" Aspect="AspectFill"
+                                               HeightRequest="140" />
+                                    </Border>
+
+                                    <Button Text="Choose a picture" Style="{StaticResource BrandButtonOutline}"
+                                            HorizontalOptions="Start" Clicked="OnChooseImageClicked" />
+
+                                    <!-- Picked but not yet sent. -->
+                                    <Border Style="{StaticResource WidgetInset}"
+                                            BackgroundColor="{StaticResource WarningFill}"
+                                            IsVisible="{Binding HasPickedImage}">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <VerticalStackLayout Grid.Column="0" Spacing="1">
+                                                <!-- Explicit colours: the warning fill is light in BOTH themes,
+                                                     so theme-following text went white in dark mode. -->
+                                                <Label Text="{Binding PickedImageLabel}" FontSize="12.5"
+                                                       FontAttributes="Bold"
+                                                       TextColor="{StaticResource TextPrimary}" />
+                                                <Label Text="Not uploaded yet — it goes up when you post."
+                                                       Style="{StaticResource RowSubtle}"
+                                                       TextColor="{StaticResource TextSecondary}" />
+                                            </VerticalStackLayout>
+                                            <Button Grid.Column="1" Text="Remove"
+                                                    Style="{StaticResource BrandButtonOutline}"
+                                                    FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                                    Command="{Binding ClearPickedImageCommand}" />
+                                        </Grid>
+                                    </Border>
+                                </VerticalStackLayout>
+
+                                <HorizontalStackLayout Spacing="8">
+                                    <Button Text="{Binding SaveButtonText}" Style="{StaticResource BrandButton}"
+                                            Command="{Binding SaveCommand}" />
+                                    <Button Text="Cancel" Style="{StaticResource BrandButtonOutline}"
+                                            Command="{Binding CancelEditCommand}" />
+                                </HorizontalStackLayout>
                             </VerticalStackLayout>
-
-                            <Border Style="{StaticResource WidgetInset}" Padding="10,2"
-                                    IsVisible="{Binding ShowsScore}">
-                                <Entry Placeholder="Score, e.g. 24 - 17" Text="{Binding NewScore}" />
-                            </Border>
-
-                            <Border Style="{StaticResource WidgetInset}" Padding="8,2">
-                                <Editor Placeholder="Report or details" Text="{Binding NewBody}"
-                                        HeightRequest="120" />
-                            </Border>
-
-                            <HorizontalStackLayout Spacing="8">
-                                <Button Text="{Binding SaveButtonText}" Style="{StaticResource BrandButton}"
-                                        Command="{Binding SaveCommand}" />
-                                <Button Text="Cancel" Style="{StaticResource BrandButtonOutline}"
-                                        Command="{Binding CancelEditCommand}" />
-                            </HorizontalStackLayout>
-                        </VerticalStackLayout>
-                    </Border>
-
-                    <!-- Upcoming fixtures -->
-                    <Border Style="{StaticResource Widget}" IsVisible="{Binding HasUpcoming}">
-                        <VerticalStackLayout Spacing="0">
-                            <HorizontalStackLayout Margin="0,0,0,10">
-                                <Label Text="Upcoming fixtures" Style="{StaticResource WidgetTitle}" />
-                                <Label Style="{StaticResource WidgetChevron}" />
-                            </HorizontalStackLayout>
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Label Grid.Column="0" Text="Next up" Style="{StaticResource SectionHeading}" />
-                                <Border Grid.Column="1" Style="{StaticResource CountBadge}">
-                                    <Label Text="{Binding UpcomingCount}" Style="{StaticResource CountBadgeText}" />
-                                </Border>
-                            </Grid>
-                            <BoxView Style="{StaticResource SectionRule}" />
-
-                                <FlexLayout BindableLayout.ItemsSource="{Binding Upcoming}"
-                                            Style="{StaticResource TileGrid}">
-                                    <BindableLayout.ItemTemplate>
-                                        <DataTemplate x:DataType="viewModels:SportsRow">
-                                            <Border Style="{StaticResource TileWide}">
-                                                <VerticalStackLayout Spacing="0">
-                                                    <BoxView Style="{StaticResource TileAccent}" Color="{StaticResource BrandAccent}" />
-                                                    <VerticalStackLayout Style="{StaticResource TileBody}">
-                                                        <Label Text="{Binding KindLabel}" Style="{StaticResource TileKicker}" />
-                                                        <Label Text="{Binding Title}" Style="{StaticResource TileTitle}" HeightRequest="36" />
-                                                        <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
-                                                        <Label Text="{Binding Body}" Style="{StaticResource TileSubtle}"
-                                                               IsVisible="{Binding HasBody}" />
-                                                        <HorizontalStackLayout Spacing="6" Margin="0,6,0,0"
-                                                                               IsVisible="{Binding CanManage}">
-                                                            <Button Text="Edit" Style="{StaticResource BrandButtonOutline}"
-                                                                    FontSize="11" Padding="10,4" MinimumHeightRequest="32"
-                                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:SportsViewModel}}, Path=StartEditCommand}"
-                                                                    CommandParameter="{Binding .}" />
-                                                            <Button Text="Delete" Style="{StaticResource BrandButtonOutline}"
-                                                                    FontSize="11" Padding="10,4" MinimumHeightRequest="32"
-                                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:SportsViewModel}}, Path=DeleteCommand}"
-                                                                    CommandParameter="{Binding .}" />
-                                                        </HorizontalStackLayout>
-                                                    </VerticalStackLayout>
-                                                </VerticalStackLayout>
-                                            </Border>
-                                        </DataTemplate>
-                                    </BindableLayout.ItemTemplate>
-                                </FlexLayout>
-                        </VerticalStackLayout>
-                    </Border>
-
-                    <!-- Results and news -->
-                    <Border Style="{StaticResource Widget}" IsVisible="{Binding HasRecent}">
-                        <VerticalStackLayout Spacing="0">
-                            <HorizontalStackLayout Margin="0,0,0,10">
-                                <Label Text="Results and news" Style="{StaticResource WidgetTitle}" />
-                                <Label Style="{StaticResource WidgetChevron}" />
-                            </HorizontalStackLayout>
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Label Grid.Column="0" Text="Recent" Style="{StaticResource SectionHeading}" />
-                                <Border Grid.Column="1" Style="{StaticResource CountBadge}">
-                                    <Label Text="{Binding RecentCount}" Style="{StaticResource CountBadgeText}" />
-                                </Border>
-                            </Grid>
-                            <BoxView Style="{StaticResource SectionRule}" />
-
-                                <FlexLayout BindableLayout.ItemsSource="{Binding Recent}"
-                                            Style="{StaticResource TileGrid}">
-                                    <BindableLayout.ItemTemplate>
-                                        <DataTemplate x:DataType="viewModels:SportsRow">
-                                            <Border Style="{StaticResource TileWide}">
-                                                <VerticalStackLayout Spacing="0">
-                                                    <BoxView Style="{StaticResource TileAccent}" Color="{StaticResource BrandAccent}" />
-                                                    <VerticalStackLayout Style="{StaticResource TileBody}">
-                                                        <Label Text="{Binding KindLabel}" Style="{StaticResource TileKicker}" />
-                                                        <Label Text="{Binding Title}" Style="{StaticResource TileTitle}" HeightRequest="36" />
-                                                        <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
-                                                        <Label Text="{Binding Body}" Style="{StaticResource TileSubtle}"
-                                                               IsVisible="{Binding HasBody}" />
-                                                        <HorizontalStackLayout Spacing="6" Margin="0,6,0,0"
-                                                                               IsVisible="{Binding CanManage}">
-                                                            <Button Text="Edit" Style="{StaticResource BrandButtonOutline}"
-                                                                    FontSize="11" Padding="10,4" MinimumHeightRequest="32"
-                                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:SportsViewModel}}, Path=StartEditCommand}"
-                                                                    CommandParameter="{Binding .}" />
-                                                            <Button Text="Delete" Style="{StaticResource BrandButtonOutline}"
-                                                                    FontSize="11" Padding="10,4" MinimumHeightRequest="32"
-                                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:SportsViewModel}}, Path=DeleteCommand}"
-                                                                    CommandParameter="{Binding .}" />
-                                                        </HorizontalStackLayout>
-                                                    </VerticalStackLayout>
-                                                </VerticalStackLayout>
-                                            </Border>
-                                        </DataTemplate>
-                                    </BindableLayout.ItemTemplate>
-                                </FlexLayout>
-                        </VerticalStackLayout>
-                    </Border>
-
-                    <Border Style="{StaticResource Widget}"
-                            IsVisible="{Binding EmptyMessage, Converter={StaticResource StringNotEmpty}}">
-                        <Border Style="{StaticResource WidgetInset}">
-                            <Label Text="{Binding EmptyMessage}" Style="{StaticResource EmptyStateText}" />
                         </Border>
-                    </Border>
 
+                        <!-- Upcoming fixtures -->
+                        <Border Style="{StaticResource Widget}" IsVisible="{Binding HasUpcoming}">
+                            <VerticalStackLayout Spacing="0">
+                                <HorizontalStackLayout Margin="0,0,0,10">
+                                    <Label Text="Upcoming fixtures" Style="{StaticResource WidgetTitle}" />
+                                    <Label Style="{StaticResource WidgetChevron}" />
+                                </HorizontalStackLayout>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Label Grid.Column="0" Text="Next up" Style="{StaticResource SectionHeading}" />
+                                    <Border Grid.Column="1" Style="{StaticResource CountBadge}">
+                                        <Label Text="{Binding UpcomingCount}" Style="{StaticResource CountBadgeText}" />
+                                    </Border>
+                                </Grid>
+                                <BoxView Style="{StaticResource SectionRule}" />
+
+                                    <FlexLayout BindableLayout.ItemsSource="{Binding Upcoming}"
+                                                Style="{StaticResource TileGrid}">
+                                        <BindableLayout.ItemTemplate>
+                                            <DataTemplate x:DataType="viewModels:SportsRow">
+                                                <Border Style="{StaticResource TileWide}">
+                                                    <VerticalStackLayout Spacing="0">
+                                                        <BoxView Style="{StaticResource TileAccent}" Color="{StaticResource BrandAccent}" />
+                                                        <!-- The article's picture, when it has one. -->
+                                                        <Image Source="{Binding ImageUrl}" Aspect="AspectFill"
+                                                               HeightRequest="150"
+                                                               IsVisible="{Binding HasImage}" />
+                                                        <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                            <Label Text="{Binding KindLabel}" Style="{StaticResource TileKicker}" />
+                                                            <Label Text="{Binding Title}" Style="{StaticResource TileTitle}" HeightRequest="36" />
+                                                            <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
+                                                            <Label Text="{Binding Body}" Style="{StaticResource TileSubtle}"
+                                                                   IsVisible="{Binding HasBody}" />
+                                                            <HorizontalStackLayout Spacing="6" Margin="0,6,0,0"
+                                                                                   IsVisible="{Binding CanManage}">
+                                                                <Button Text="Edit" Style="{StaticResource BrandButtonOutline}"
+                                                                        FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                                                        Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:SportsViewModel}}, Path=StartEditCommand}"
+                                                                        CommandParameter="{Binding .}" />
+                                                                <Button Text="Delete" Style="{StaticResource BrandButtonOutline}"
+                                                                        FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                                                        Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:SportsViewModel}}, Path=DeleteCommand}"
+                                                                        CommandParameter="{Binding .}" />
+                                                            </HorizontalStackLayout>
+                                                        </VerticalStackLayout>
+                                                    </VerticalStackLayout>
+                                                </Border>
+                                            </DataTemplate>
+                                        </BindableLayout.ItemTemplate>
+                                    </FlexLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Results and news -->
+                        <Border Style="{StaticResource Widget}" IsVisible="{Binding HasRecent}">
+                            <VerticalStackLayout Spacing="0">
+                                <HorizontalStackLayout Margin="0,0,0,10">
+                                    <Label Text="Results and news" Style="{StaticResource WidgetTitle}" />
+                                    <Label Style="{StaticResource WidgetChevron}" />
+                                </HorizontalStackLayout>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Label Grid.Column="0" Text="Recent" Style="{StaticResource SectionHeading}" />
+                                    <Border Grid.Column="1" Style="{StaticResource CountBadge}">
+                                        <Label Text="{Binding RecentCount}" Style="{StaticResource CountBadgeText}" />
+                                    </Border>
+                                </Grid>
+                                <BoxView Style="{StaticResource SectionRule}" />
+
+                                    <FlexLayout BindableLayout.ItemsSource="{Binding Recent}"
+                                                Style="{StaticResource TileGrid}">
+                                        <BindableLayout.ItemTemplate>
+                                            <DataTemplate x:DataType="viewModels:SportsRow">
+                                                <Border Style="{StaticResource TileWide}">
+                                                    <VerticalStackLayout Spacing="0">
+                                                        <BoxView Style="{StaticResource TileAccent}" Color="{StaticResource BrandAccent}" />
+                                                        <!-- The article's picture, when it has one. -->
+                                                        <Image Source="{Binding ImageUrl}" Aspect="AspectFill"
+                                                               HeightRequest="150"
+                                                               IsVisible="{Binding HasImage}" />
+                                                        <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                            <Label Text="{Binding KindLabel}" Style="{StaticResource TileKicker}" />
+                                                            <Label Text="{Binding Title}" Style="{StaticResource TileTitle}" HeightRequest="36" />
+                                                            <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
+                                                            <Label Text="{Binding Body}" Style="{StaticResource TileSubtle}"
+                                                                   IsVisible="{Binding HasBody}" />
+                                                            <HorizontalStackLayout Spacing="6" Margin="0,6,0,0"
+                                                                                   IsVisible="{Binding CanManage}">
+                                                                <Button Text="Edit" Style="{StaticResource BrandButtonOutline}"
+                                                                        FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                                                        Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:SportsViewModel}}, Path=StartEditCommand}"
+                                                                        CommandParameter="{Binding .}" />
+                                                                <Button Text="Delete" Style="{StaticResource BrandButtonOutline}"
+                                                                        FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                                                        Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:SportsViewModel}}, Path=DeleteCommand}"
+                                                                        CommandParameter="{Binding .}" />
+                                                            </HorizontalStackLayout>
+                                                        </VerticalStackLayout>
+                                                    </VerticalStackLayout>
+                                                </Border>
+                                            </DataTemplate>
+                                        </BindableLayout.ItemTemplate>
+                                    </FlexLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Style="{StaticResource Widget}"
+                                IsVisible="{Binding EmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                            <Border Style="{StaticResource WidgetInset}">
+                                <Label Text="{Binding EmptyMessage}" Style="{StaticResource EmptyStateText}" />
+                            </Border>
+                        </Border>
+
+                    </VerticalStackLayout>
                 </VerticalStackLayout>
-            </VerticalStackLayout>
-        </ScrollView>
-    </RefreshView>
+            </ScrollView>
+        </RefreshView>
+        <!-- Declared LAST so it draws on top: several pages bleed
+             their header past the content edge with a negative
+             margin, which would otherwise paint over the rail. -->
+        <controls:HomeRail Grid.Column="0" />
+    </Grid>
 </ContentPage>

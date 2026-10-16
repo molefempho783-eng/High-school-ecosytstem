@@ -88,20 +88,16 @@ public partial class TeacherDashboardPage : ContentPage
     {
         switch (action)
         {
-            // Both of these are sections on this page now, so scroll rather
-            // than navigating away from what the teacher is looking at.
+            // Scroll only. Account is the single exception.
+            case "tools": await ScrollToAsync(ToolsSection); break;
+            case "roles": await ScrollToAsync(RolesSection); break;
+            case "timetable": await ScrollToAsync(TimetableSection); break;
             case "marking": await ScrollToAsync(MarkingSection); break;
             case "classes": await ScrollToAsync(ClassesSection); break;
-            case "timetable": await ScrollToAsync(TimetableSection); break;
-
-            // Editing the timetable needs more room than a widget, so that
-            // stays a page.
-            case "edit-timetable": await PushAsync<TeacherTimetablePage>(); break;
-            case "manage-classes": await PushAsync<TeacherClassesPage>(); break;
-            case "announcements": await PushAsync<DashboardPage>(); break;
-            case "sport": await PushAsync<SportsPage>(); break;
-            case "admin": await PushAsync<AdminDashboardPage>(); break;
-            case "personal": await PushAsync<DashboardPage>(); break;
+            case "messages": await ScrollToAsync(MessagesSection); break;
+            case "announcements": await ScrollToAsync(AnnouncementsSection); break;
+            case "sport": await ScrollToAsync(SportsSection); break;
+            case "newspaper": await ScrollToAsync(NewspaperSection); break;
             case "account": await PushAsync<AccountPage>(); break;
         }
     }
@@ -132,4 +128,76 @@ public partial class TeacherDashboardPage : ContentPage
             CrashLogger.Log($"Navigate:{typeof(TPage).Name}", ex);
         }
     }
+
+    /// <summary>
+    /// The whole notice plus who posted it. Read-only on this dashboard —
+    /// school-wide notices are composed with the admin tools.
+    /// </summary>
+    private async void OnAnnouncementTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is not AnnouncementRow row) return;
+
+        try
+        {
+            // A teacher's own class notice opens the class it belongs to, where
+            // it can be edited beside the rest of that class's settings. Reading
+            // a notice is rarely the end of it — noticing a typo is.
+            //
+            // School-wide notices stay a popup: a teacher can't edit those, and
+            // there is no page of theirs to open.
+            if (row.IsClassAnnouncement && !string.IsNullOrWhiteSpace(row.Source.ClassId))
+            {
+                var page = _services.GetRequiredService<TeacherClassDetailPage>();
+                page.Load(row.Source.ClassId);
+                await Navigation.PushAsync(page);
+                return;
+            }
+
+            await DetailPopup.ShowAsync(
+                this, row.Title, row.Source.DetailText,
+                row.Source.ScopeLabel, row.AccentColor, canManage: false);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Dashboard.AnnouncementDetail", ex);
+        }
+    }
+
+    /// <summary>Full details for one fixture, result or article.</summary>
+    private async void OnSportsItemTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is not SportsRow row) return;
+
+        try
+        {
+            await DetailPopup.ShowAsync(
+                this, row.Title, row.Source.DetailText,
+                row.Source.SportAndTeam, Color.FromArgb("#8CC63E"), canManage: false);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Dashboard.SportsDetail", ex);
+        }
+    }
+
+    /// <summary>
+    /// Opens the sports page to post a fixture, result or article.
+    ///
+    /// Navigation, not a popup: a post needs sport, team, opponent, venue, date
+    /// and time. The button is hidden unless the rules would accept the write,
+    /// which is politeness rather than security — firestore.rules is the
+    /// boundary either way.
+    /// </summary>
+    private async void OnPostSportsClicked(object? sender, EventArgs e)
+        => await PushAsync<SportsPage>();
+
+    /// <summary>
+    /// Opens the school dashboard, where school-wide announcements are written.
+    ///
+    /// There is deliberately ONE composer rather than one per dashboard: two
+    /// would drift, and an announcement form has enough state (pinned, public,
+    /// expiry, edit-in-place) that the drift would be silent.
+    /// </summary>
+    private async void OnPostAnnouncementClicked(object? sender, EventArgs e)
+        => await PushAsync<DashboardPage>();
 }

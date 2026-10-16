@@ -15,125 +15,134 @@
 -->
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
              xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
              x:Class="HighSchoolEcosystem.Views.TeacherQuestionsPage"
              x:DataType="viewModels:TeacherQuestionsViewModel"
              Title="Questions">
-    <ScrollView Style="{StaticResource PageCanvas}">
-        <VerticalStackLayout Spacing="0">
+    <!-- A one-button sidebar: the same left edge as the dashboards,
+         carrying the one thing a pushed page needs - a way home. -->
+    <Grid ColumnDefinitions="44,*">
+        <ScrollView Grid.Column="1" Style="{StaticResource PageCanvas}">
+            <VerticalStackLayout Spacing="0">
 
-            <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
-                <Label Text="Questions" FontSize="20" FontAttributes="Bold"
-                       TextColor="{StaticResource White}" />
-                <Label Text="{Binding AssignmentTitle}" FontSize="12"
-                       TextColor="{StaticResource White}" Opacity="0.85" />
-            </VerticalStackLayout>
-            <BoxView Style="{StaticResource NavRuleBar}" />
+                <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                    <Label Text="Questions" FontSize="20" FontAttributes="Bold"
+                           TextColor="{StaticResource White}" />
+                    <Label Text="{Binding AssignmentTitle}" FontSize="12"
+                           TextColor="{StaticResource White}" Opacity="0.85" />
+                </VerticalStackLayout>
+                <BoxView Style="{StaticResource NavRuleBar}" />
 
-            <VerticalStackLayout Padding="12" Spacing="12">
+                <VerticalStackLayout Padding="12" Spacing="12">
 
-                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
-                <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
-                       IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
+                    <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                    <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
+                           IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
 
-                <!-- ============ Write a question ============ -->
+                    <!-- ============ Write a question ============ -->
 
-                <Border Style="{StaticResource Widget}">
-                    <VerticalStackLayout Spacing="0">
-                        <HorizontalStackLayout Margin="0,0,0,4">
-                            <Label Text="{Binding FormHeading}" Style="{StaticResource WidgetTitle}" />
-                            <Label Style="{StaticResource WidgetChevron}" />
-                        </HorizontalStackLayout>
-                        <Label Text="Students see the options but never the correct answer. These are marked automatically the moment work is handed in."
-                               Style="{StaticResource RowSubtle}" Margin="0,0,0,12" />
+                    <Border Style="{StaticResource Widget}">
+                        <VerticalStackLayout Spacing="0">
+                            <HorizontalStackLayout Margin="0,0,0,4">
+                                <Label Text="{Binding FormHeading}" Style="{StaticResource WidgetTitle}" />
+                                <Label Style="{StaticResource WidgetChevron}" />
+                            </HorizontalStackLayout>
+                            <Label Text="Students see the options but never the correct answer. These are marked automatically the moment work is handed in."
+                                   Style="{StaticResource RowSubtle}" Margin="0,0,0,12" />
 
-                        <VerticalStackLayout Spacing="9">
-                            <Border Style="{StaticResource WidgetInset}" Padding="8,2">
-                                <Editor Placeholder="Question text" Text="{Binding NewText}"
-                                        HeightRequest="90" />
-                            </Border>
+                            <VerticalStackLayout Spacing="9">
+                                <Border Style="{StaticResource WidgetInset}" Padding="8,2">
+                                    <Editor Placeholder="Question text" Text="{Binding NewText}"
+                                            HeightRequest="90" />
+                                </Border>
 
-                            <Label Text="Options" Style="{StaticResource SectionHeading}"
-                                   FontSize="13" Margin="0,4,0,0" />
-                            <Label Text="A and B are required. Leave C and D blank for a two-option question."
-                                   Style="{StaticResource RowSubtle}" />
+                                <Label Text="Options" Style="{StaticResource SectionHeading}"
+                                       FontSize="13" Margin="0,4,0,0" />
+                                <Label Text="A and B are required. Leave C and D blank for a two-option question."
+                                       Style="{StaticResource RowSubtle}" />
 
-                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
-                                <Entry Placeholder="Option A" Text="{Binding OptionA}" />
-                            </Border>
-                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
-                                <Entry Placeholder="Option B" Text="{Binding OptionB}" />
-                            </Border>
-                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
-                                <Entry Placeholder="Option C (optional)" Text="{Binding OptionC}" />
-                            </Border>
-                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
-                                <Entry Placeholder="Option D (optional)" Text="{Binding OptionD}" />
-                            </Border>
+                                <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                    <Entry Placeholder="Option A" Text="{Binding OptionA}" />
+                                </Border>
+                                <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                    <Entry Placeholder="Option B" Text="{Binding OptionB}" />
+                                </Border>
+                                <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                    <Entry Placeholder="Option C (optional)" Text="{Binding OptionC}" />
+                                </Border>
+                                <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                    <Entry Placeholder="Option D (optional)" Text="{Binding OptionD}" />
+                                </Border>
 
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Margin="0,4,0,0">
-                                <VerticalStackLayout Grid.Column="0" Spacing="4">
-                                    <Label Text="Correct answer" Style="{StaticResource RowSubtle}" />
-                                    <Border Style="{StaticResource WidgetInset}" Padding="8,0">
-                                        <Picker ItemsSource="{Binding AnswerChoices}"
-                                                SelectedItem="{Binding CorrectChoice}" />
-                                    </Border>
-                                </VerticalStackLayout>
-                                <VerticalStackLayout Grid.Column="1" Spacing="4">
-                                    <Label Text="Points" Style="{StaticResource RowSubtle}" />
-                                    <Border Style="{StaticResource WidgetInset}" Padding="10,2">
-                                        <Entry Keyboard="Numeric" Text="{Binding NewPoints}" />
-                                    </Border>
-                                </VerticalStackLayout>
-                            </Grid>
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Margin="0,4,0,0">
+                                    <VerticalStackLayout Grid.Column="0" Spacing="4">
+                                        <Label Text="Correct answer" Style="{StaticResource RowSubtle}" />
+                                        <Border Style="{StaticResource WidgetInset}" Padding="8,0">
+                                            <Picker ItemsSource="{Binding AnswerChoices}"
+                                                    SelectedItem="{Binding CorrectChoice}" />
+                                        </Border>
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Column="1" Spacing="4">
+                                        <Label Text="Points" Style="{StaticResource RowSubtle}" />
+                                        <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                            <Entry Keyboard="Numeric" Text="{Binding NewPoints}" />
+                                        </Border>
+                                    </VerticalStackLayout>
+                                </Grid>
 
-                            <Button Text="{Binding SaveButtonText}" Style="{StaticResource BrandButton}"
-                                    HorizontalOptions="Start" Command="{Binding SaveCommand}" />
-                            <Button Text="Cancel edit" Style="{StaticResource BrandButtonOutline}"
-                                    HorizontalOptions="Start"
-                                    Command="{Binding CancelEditCommand}"
-                                    IsVisible="{Binding IsEditing}" />
+                                <Button Text="{Binding SaveButtonText}" Style="{StaticResource BrandButton}"
+                                        HorizontalOptions="Start" Command="{Binding SaveCommand}" />
+                                <Button Text="Cancel edit" Style="{StaticResource BrandButtonOutline}"
+                                        HorizontalOptions="Start"
+                                        Command="{Binding CancelEditCommand}"
+                                        IsVisible="{Binding IsEditing}" />
+                            </VerticalStackLayout>
                         </VerticalStackLayout>
-                    </VerticalStackLayout>
-                </Border>
+                    </Border>
 
-                <!-- ============ The paper so far ============ -->
+                    <!-- ============ The paper so far ============ -->
 
-                <Border Style="{StaticResource Widget}">
-                    <VerticalStackLayout Spacing="0">
-                        <HorizontalStackLayout Margin="0,0,0,4">
-                            <Label Text="The paper so far" Style="{StaticResource WidgetTitle}" />
-                            <Label Style="{StaticResource WidgetChevron}" />
-                        </HorizontalStackLayout>
-                        <Label Text="Tap a question to edit it. Students answer them in this order."
-                               Style="{StaticResource RowSubtle}" Margin="0,0,0,8" />
+                    <Border Style="{StaticResource Widget}">
+                        <VerticalStackLayout Spacing="0">
+                            <HorizontalStackLayout Margin="0,0,0,4">
+                                <Label Text="The paper so far" Style="{StaticResource WidgetTitle}" />
+                                <Label Style="{StaticResource WidgetChevron}" />
+                            </HorizontalStackLayout>
+                            <Label Text="Tap a question to edit it. Students answer them in this order."
+                                   Style="{StaticResource RowSubtle}" Margin="0,0,0,8" />
 
-                        <CollectionView ItemsSource="{Binding Questions}" HeightRequest="300"
-                                        SelectionMode="Single" SelectionChanged="OnQuestionSelected">
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate x:DataType="viewModels:QuestionRow">
-                                    <Grid Padding="0,10" ColumnDefinitions="*,Auto" ColumnSpacing="9">
-                                        <VerticalStackLayout Grid.Column="0" Spacing="1">
-                                            <Label Text="{Binding Title}" Style="{StaticResource RowTitle}" />
-                                            <Label Text="{Binding Subtitle}" Style="{StaticResource RowMeta}" />
-                                        </VerticalStackLayout>
-                                        <Button Grid.Column="1" Text="Remove"
-                                                Style="{StaticResource BrandButtonOutline}"
-                                                FontSize="11" Padding="10,5" MinimumHeightRequest="34"
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherQuestionsViewModel}}, Path=DeleteCommand}"
-                                                CommandParameter="{Binding .}" />
-                                    </Grid>
-                                </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                            <CollectionView.EmptyView>
-                                <Label Text="No questions yet. Write the first one above — a multiple-choice paper with no questions can't be handed in."
-                                       Style="{StaticResource EmptyStateText}" Padding="10" />
-                            </CollectionView.EmptyView>
-                        </CollectionView>
-                    </VerticalStackLayout>
-                </Border>
+                            <CollectionView ItemsSource="{Binding Questions}" HeightRequest="{Binding Questions, Converter={StaticResource ListHeight}, ConverterParameter='60,5'}"
+                                            SelectionMode="Single" SelectionChanged="OnQuestionSelected">
+                                <CollectionView.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:QuestionRow">
+                                        <Grid Padding="0,10" ColumnDefinitions="*,Auto" ColumnSpacing="9">
+                                            <VerticalStackLayout Grid.Column="0" Spacing="1">
+                                                <Label Text="{Binding Title}" Style="{StaticResource RowTitle}" />
+                                                <Label Text="{Binding Subtitle}" Style="{StaticResource RowMeta}" />
+                                            </VerticalStackLayout>
+                                            <Button Grid.Column="1" Text="Remove"
+                                                    Style="{StaticResource BrandButtonOutline}"
+                                                    FontSize="11" Padding="10,5" MinimumHeightRequest="34"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherQuestionsViewModel}}, Path=DeleteCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </CollectionView.ItemTemplate>
+                                <CollectionView.EmptyView>
+                                    <Label Text="No questions yet. Write the first one above — a multiple-choice paper with no questions can't be handed in."
+                                           Style="{StaticResource EmptyStateText}" Padding="10" />
+                                </CollectionView.EmptyView>
+                            </CollectionView>
+                        </VerticalStackLayout>
+                    </Border>
 
+                </VerticalStackLayout>
             </VerticalStackLayout>
-        </VerticalStackLayout>
-    </ScrollView>
+        </ScrollView>
+        <!-- Declared LAST so it draws on top: several pages bleed
+             their header past the content edge with a negative
+             margin, which would otherwise paint over the rail. -->
+        <controls:HomeRail Grid.Column="0" />
+    </Grid>
 </ContentPage>

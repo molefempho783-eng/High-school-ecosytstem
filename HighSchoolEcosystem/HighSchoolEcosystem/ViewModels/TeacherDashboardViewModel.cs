@@ -24,6 +24,9 @@ public sealed record TeacherClassRow(string Id, string Name, string Subject, int
     /// the same palette a student sees on their own class grid.
     /// </summary>
     public Color BannerColor { get; init; } = Colors.Transparent;
+
+    /// <summary>Unread class-chat messages; fills in after the tile is shown.</summary>
+    public ChatUnread Unread { get; } = new();
 }
 
 /// <summary>
@@ -34,6 +37,15 @@ public partial class TeacherDashboardViewModel : DashboardShellViewModel
 {
     private readonly IUserProfileService _profiles;
     private readonly IClassService _classes;
+    private readonly IContentService _content;
+    private readonly IClassChatService _chat;
+    private readonly IConversationService _conversations;
+
+    /// <summary>
+    /// The classes this teacher owns, cached from the last load so the
+    /// announcements feed can ask for their notices without a second fetch.
+    /// </summary>
+    private List<SchoolClass> _myClasses = [];
 
 
     /// <summary>True when this teacher also holds the Admin role.</summary>
@@ -68,7 +80,15 @@ public partial class TeacherDashboardViewModel : DashboardShellViewModel
             : "Switch to my school view";
     }
 
-    [ObservableProperty] private ObservableCollection<TeacherClassRow> myClasses = [];
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasClasses))]
+    private ObservableCollection<TeacherClassRow> myClasses = [];
+
+    /// <summary>
+    /// Gates the "post a class notice" button. A teacher with no classes has
+    /// nowhere to post one, so offering it would be a dead end.
+    /// </summary>
+    public bool HasClasses => MyClasses.Count > 0;
 
 
     /// <summary>Set by the page. See DashboardViewModel for why this split exists.</summary>
@@ -80,44 +100,38 @@ public partial class TeacherDashboardViewModel : DashboardShellViewModel
     /// </summary>
     private void BuildRail()
     {
+        // Same order as the widgets on TeacherDashboardPage, top to bottom.
+        // Scroll only — Account is the sole exception.
         var items = new List<RailItem>
         {
-            // "classes" and "timetable" are sections on this page, so they
-            // scroll. The manage/edit entries below open the full editors.
-            new("\u2714", "To mark", new RelayCommand(() => OnRailAction?.Invoke("marking"))),
-            new("\U0001F4D8", "My classes", new RelayCommand(() => OnRailAction?.Invoke("classes"))),
-            new("\U0001F5D3", "Timetable", new RelayCommand(() => OnRailAction?.Invoke("timetable"))),
-            new("✎", "Edit timetable", new RelayCommand(() => OnRailAction?.Invoke("edit-timetable"))),
-            new("⚙", "Manage classes", new RelayCommand(() => OnRailAction?.Invoke("manage-classes"))),
-            new("\U0001F4E2", "Announcements", new RelayCommand(() => OnRailAction?.Invoke("announcements"))){ StartsGroup = true },
-            new("\U0001F3C6", "Sport", new RelayCommand(() => OnRailAction?.Invoke("sport")))
+            new(Icons.Teaching, "Teaching", new RelayCommand(() => OnRailAction?.Invoke("tools")))
         };
 
-        // Cross-links only for roles actually held, so nobody sees a door
-        // they can't open.
-        if (IsAlsoAdmin)
-        {
-            items.Add(new("\u2699", "Admin tools",
-                new RelayCommand(() => OnRailAction?.Invoke("admin"))) { StartsGroup = true });
-        }
+        if (IsAlsoAdmin || HasPersonalView)
+            items.Add(new(Icons.OtherRoles, "Your other roles", new RelayCommand(() => OnRailAction?.Invoke("roles"))));
 
-        if (HasPersonalView)
-        {
-            items.Add(new("\U0001F464", PersonalViewLabel,
-                new RelayCommand(() => OnRailAction?.Invoke("personal")))
-            { StartsGroup = !IsAlsoAdmin });
-        }
+        items.Add(new(Icons.Timetable, "Timetable", new RelayCommand(() => OnRailAction?.Invoke("timetable"))));
+        items.Add(new(Icons.Marking, "To mark", new RelayCommand(() => OnRailAction?.Invoke("marking"))));
+        items.Add(new(Icons.Classes, "Your classes", new RelayCommand(() => OnRailAction?.Invoke("classes"))));
+        items.Add(new(Icons.Chat, "Messages", new RelayCommand(() => OnRailAction?.Invoke("messages"))));
+        items.Add(new(Icons.Announcement, "Announcements", new RelayCommand(() => OnRailAction?.Invoke("announcements"))));
+        items.Add(new(Icons.Sport, "Sport", new RelayCommand(() => OnRailAction?.Invoke("sport"))));
+        items.Add(new(Icons.Newspaper, "Newspaper", new RelayCommand(() => OnRailAction?.Invoke("newspaper"))));
 
-        items.Add(new("\u25CF", "Account",
+        items.Add(new(Icons.Account, "Account",
             new RelayCommand(() => OnRailAction?.Invoke("account"))) { StartsGroup = true });
 
         RailItems = new ObservableCollection<RailItem>(items);
     }
 
-    public TeacherDashboardViewModel(IUserProfileService profiles, IClassService classes, ISchoolInfoProvider schoolInfo)
+    public TeacherDashboardViewModel(IUserProfileService profiles, IClassService classes, IContentService content,
+        ISchoolInfoProvider schoolInfo, IClassChatService chat, IConversationService conversations)
     {
+        _chat = chat;
+        _conversations = conversations;
         _profiles = profiles;
         _classes = classes;
+        _content = content;
         SchoolName = schoolInfo.Current.DisplayName;
 
         // Built here as well as after load, so a failed profile read leaves a
@@ -152,13 +166,24 @@ public partial class TeacherDashboardViewModel : DashboardShellViewModel
                     BannerColor = colourByClassId.TryGetValue(c.Id, out var col) ? col : palette[0]
                 }));
 
+            // Unawaited: one COUNT read per class.
+            _ = ChatUnread.LoadAllAsync(_chat, MyClasses.Select(c => (c.Id, c.Unread)));
+
             await LoadTimetableAsync(mine, colourByClassId);
             // NOT awaited: this is a read per class plus one per recent
             // assignment, and holding IsBusy for it would leave the whole
             // dashboard behind a spinner while classes and the timetable are
             // already loaded and ready to show. The "Checking..." placeholder
             // in the widget exists precisely to cover this gap.
+            // Cached BEFORE the feed starts: LoadSchoolFeedAsync reads it to
+            // fetch this teacher's own class notices.
+            _myClasses = mine.ToList();
+
             _ = LoadMarkingQueueAsync(mine);
+            _ = LoadSchoolFeedAsync();
+            // Unawaited too: a query for the teacher's threads, and nothing
+            // above waits on it.
+            _ = LoadMessagesAsync(_conversations);
 
             if (mine.Count == 0)
                 StatusMessage = "You don't have any classes yet. Tap \"My classes\" to create one.";
@@ -333,6 +358,131 @@ public partial class TeacherDashboardViewModel : DashboardShellViewModel
                 : $"Nothing scheduled for {scope}.";
     }
 
+    /// <summary>
+    /// Pull to refresh.
+    ///
+    /// The try/finally is load-bearing: LoadAsync opens with `if (IsBusy)
+    /// return`, so pulling while a load is already running would return without
+    /// ever clearing IsRefreshing, and the spinner would hang there forever.
+    /// </summary>
     [RelayCommand]
-    private Task RefreshAsync() => LoadAsync();
+    private async Task RefreshAsync()
+    {
+        try { await LoadAsync(); }
+        finally { IsRefreshing = false; }
+    }
+
+    // ==================== school feed ====================
+    //
+    // Announcements and sport are on EVERY dashboard, not just the student's.
+    // A teacher, a coach and an admin all need to know what the school has been
+    // told — and it's also what lets the rail scroll to them instead of pushing
+    // a different role's page, which is what it used to do.
+    //
+    // Read-only here. Composing a school-wide notice stays admin-only on the
+    // student dashboard, and posting sport stays on the sports page, because
+    // both need more fields than a widget can hold.
+
+
+    /// <summary>
+    /// Mirrors IContentService, which mirrors the rules. UI convenience only —
+    /// hiding a button the rules would refuse is politeness, not security.
+    /// </summary>
+    [ObservableProperty] private bool canPostSports;
+
+    /// <summary>True for admins: school-wide notices are admin-only.</summary>
+    [ObservableProperty] private bool canManageAnnouncements;
+
+    [ObservableProperty] private ObservableCollection<AnnouncementRow> announcements = [];
+    [ObservableProperty] private bool hasAnnouncements;
+    [ObservableProperty] private string announcementsCount = "0";
+    [ObservableProperty] private string announcementsEmptyMessage = string.Empty;
+
+    [ObservableProperty] private ObservableCollection<SportsRow> sportsItems = [];
+    [ObservableProperty] private bool hasSports;
+    [ObservableProperty] private string sportsCount = "0";
+    [ObservableProperty] private string sportsEmptyMessage = string.Empty;
+
+    /// <summary>
+    /// Loads both feeds. Unawaited by the caller, so a slow read never holds up
+    /// the parts of the dashboard this role actually came here for, and a
+    /// failure leaves empty widgets rather than an error over the whole page.
+    /// </summary>
+    private async Task LoadSchoolFeedAsync()
+    {
+        try
+        {
+            // Must run before the Can* flags mean anything; they fail closed
+            // until it has.
+            await _content.PrimeAsync();
+            CanPostSports = _content.CanPostSports;
+            CanManageAnnouncements = _content.CanManageAnnouncements;
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Dashboard.Prime", ex);
+        }
+
+        try
+        {
+            // School-wide notices. includeExpired for an admin, who manages
+            // them from the school dashboard and needs to see why one vanished.
+            var schoolNotices = await _content.GetAnnouncementsAsync(
+                includeExpired: CanManageAnnouncements);
+
+            // Plus the teacher's OWN class notices. A teacher who posts to their
+            // class had no way to see it afterwards without opening the class —
+            // which meant no way to notice a typo, or that it had expired.
+            //
+            // includeExpired is deliberately true here regardless of role: on
+            // their own dashboard a teacher is the AUTHOR of these, and the
+            // whole point of showing an author a lapsed notice is so they can
+            // tell it lapsed and extend it.
+            var classNotices = _myClasses.Count > 0
+                ? await _classes.GetAnnouncementsForClassesAsync(_myClasses)
+                : [];
+
+            var merged = schoolNotices
+                .Select(a => new AnnouncementRow(a, CanManageAnnouncements))
+                // CanManage is true for class notices because this teacher owns
+                // the class — the rules agree, and it's what puts Edit and
+                // Delete behind the detail popup's Manage step.
+                .Concat(classNotices.Select(a => new AnnouncementRow(a, true)))
+                // Pinned first, then newest, across both sources. Sorting each
+                // separately would bury a pinned class notice under school news.
+                .OrderByDescending(r => r.IsPinned)
+                .ThenByDescending(r => r.Source.PostedAt)
+                .Take(6)
+                .ToList();
+
+            Announcements = new ObservableCollection<AnnouncementRow>(merged);
+            HasAnnouncements = merged.Count > 0;
+            AnnouncementsCount = merged.Count.ToString();
+            AnnouncementsEmptyMessage = HasAnnouncements
+                ? string.Empty
+                : "There are no announcements to display.";
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("TeacherDashboard.Announcements", ex);
+            AnnouncementsEmptyMessage = "We couldn't load announcements.";
+        }
+
+        try
+        {
+            var sport = (await _content.GetSportsAsync()).Take(6).ToList();
+            SportsItems = new ObservableCollection<SportsRow>(
+                sport.Select(i => new SportsRow(i, _content.CanEditSportsItem(i))));
+            HasSports = sport.Count > 0;
+            SportsCount = sport.Count.ToString();
+            SportsEmptyMessage = HasSports ? string.Empty : "Nothing posted yet.";
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("TeacherDashboard.Sport", ex);
+            SportsEmptyMessage = "We couldn't load sport.";
+        }
+
+        await LoadNewspaperAsync(_content);
+    }
 }

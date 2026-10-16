@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    The Newspaper section, shared by every dashboard.
+
+    One control rather than five copies of the markup: the section is the same
+    for every role, and the copies are how the dashboards drifted apart before.
+    Like the header and rail it has no BindableProperties - it reads the
+    newspaper state on DashboardShellViewModel through the inherited
+    BindingContext, so dropping it into any dashboard just works.
+
+    Hidden entirely (ShowsNewspaper) for visitors and guests, whom the rules
+    don't let read it.
+
+    A tile grid, not a list: you browse a newspaper, you don't work through it.
+-->
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Controls.NewspaperWidget"
+             x:DataType="viewModels:DashboardShellViewModel"
+             IsVisible="{Binding ShowsNewspaper}">
+
+    <Border Style="{StaticResource Widget}">
+        <VerticalStackLayout Spacing="0">
+            <HorizontalStackLayout Margin="0,0,0,10">
+                <Label Text="Newspaper" Style="{StaticResource WidgetTitle}" />
+                <Label Style="{StaticResource WidgetChevron}" />
+            </HorizontalStackLayout>
+
+            <!-- Journalists and admins. Writing needs a full-height editor and
+                 a picture picker, so it opens the Newspaper page; reading
+                 happens right here. -->
+            <Button Text="Write an article" Style="{StaticResource BrandButtonOutline}"
+                    HorizontalOptions="Start" FontSize="12"
+                    Padding="12,6" MinimumHeightRequest="36" Margin="0,0,0,10"
+                    IsVisible="{Binding CanWriteArticles}"
+                    Clicked="OnWriteClicked" />
+
+            <Grid ColumnDefinitions="*,Auto">
+                <Label Grid.Column="0" Text="Latest" Style="{StaticResource SectionHeading}" />
+                <Border Grid.Column="1" Style="{StaticResource CountBadge}">
+                    <Label Text="{Binding NewspaperCount}" Style="{StaticResource CountBadgeText}" />
+                </Border>
+            </Grid>
+            <BoxView Style="{StaticResource SectionRule}" />
+
+            <FlexLayout BindableLayout.ItemsSource="{Binding NewspaperArticles}"
+                        Style="{StaticResource TileGrid}"
+                        IsVisible="{Binding HasNewspaperArticles}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="viewModels:ArticleRow">
+                        <Border Style="{StaticResource Tile}">
+                            <!-- The whole article in place, in the detail sheet.
+                                 Leaving the dashboard to read one article loses
+                                 the reader's place. -->
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnArticleTapped" />
+                            </Border.GestureRecognizers>
+                            <VerticalStackLayout Spacing="0">
+                                <BoxView Style="{StaticResource TileAccent}"
+                                         Color="{StaticResource BrandBright}" />
+                                <Image Source="{Binding ImageUrl}" Aspect="AspectFill"
+                                       HeightRequest="72"
+                                       IsVisible="{Binding HasImage}" />
+                                <VerticalStackLayout Style="{StaticResource TileBody}">
+                                    <Label Text="Article" Style="{StaticResource TileKicker}" />
+                                    <Label Text="{Binding Title}" Style="{StaticResource TileTitle}"
+                                           HeightRequest="36" />
+                                    <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </FlexLayout>
+
+            <Border Style="{StaticResource WidgetInset}"
+                    IsVisible="{Binding NewspaperEmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                <Label Text="{Binding NewspaperEmptyMessage}" Style="{StaticResource EmptyStateText}" />
+            </Border>
+
+            <Label Text="Read the Newspaper" Style="{StaticResource WidgetFooterLink}">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnOpenNewspaperTapped" />
+                </Label.GestureRecognizers>
+            </Label>
+        </VerticalStackLayout>
+    </Border>
+</ContentView>

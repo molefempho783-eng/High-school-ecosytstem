@@ -85,7 +85,7 @@ public sealed partial class AssignmentRow : ObservableObject
         : $"{NeedsMarkingCount} submissions still need marking";
 }
 
-public partial class TeacherClassDetailViewModel : ObservableObject
+public partial class TeacherClassDetailViewModel : DashboardShellViewModel
 {
     private readonly IClassService _classes;
     private string _classId = string.Empty;
@@ -100,8 +100,11 @@ public partial class TeacherClassDetailViewModel : ObservableObject
     // doesn't refetch and silently discard unsaved ticks.
     private string? _studentsLoadedFor;
 
-    [ObservableProperty] private bool isBusy;
-    [ObservableProperty] private string statusMessage = string.Empty;
+    // IsBusy, IsRefreshing and StatusMessage come from DashboardShellViewModel.
+    // Redeclaring them here would hide the base's and give the rail a different
+    // busy state from the page's — which is exactly how the roles drifted apart
+    // the first time.
+
     [ObservableProperty] private string className = string.Empty;
 
     [ObservableProperty] private string editName = string.Empty;
@@ -177,7 +180,44 @@ public partial class TeacherClassDetailViewModel : ObservableObject
     /// </summary>
     public event Action<string, string>? QuestionsRequested;
 
-    public TeacherClassDetailViewModel(IClassService classes) => _classes = classes;
+    private readonly IClassChatService _chat;
+
+    public TeacherClassDetailViewModel(IClassService classes, IClassChatService chat)
+    {
+        _classes = classes;
+        _chat = chat;
+        BuildRail();
+    }
+
+    /// <summary>Unread messages, shown on the "Class chat" row.</summary>
+    public ChatUnread ChatUnread { get; } = new();
+
+    /// <summary>Set by the page; the view model doesn't know about scrolling.</summary>
+    public Action<string>? OnRailAction { get; set; }
+
+    /// <summary>
+    /// The rail for this page. Same contract as the dashboards: the order below
+    /// must match the widget order in TeacherClassDetailPage, top to bottom, and
+    /// every item scrolls rather than navigating.
+    ///
+    /// No Account here — this is a pushed page, so the back button is the way
+    /// out and an Account jump from three levels deep would strand the teacher.
+    /// </summary>
+    private void BuildRail()
+    {
+        RailItems =
+        [
+            // Home first. This is a pushed page, so the back button exists, but
+            // a teacher three levels deep (dashboard, class, marks) shouldn't
+            // have to tap it three times to get out.
+            new(Icons.Home, "Home", new RelayCommand(() => OnRailAction?.Invoke("home"))),
+            new(Icons.CourseContent, "Course content", new RelayCommand(() => OnRailAction?.Invoke("content"))),
+            new(Icons.Announcement, "Class notices", new RelayCommand(() => OnRailAction?.Invoke("notices"))),
+            new(Icons.Work, "Assignments", new RelayCommand(() => OnRailAction?.Invoke("work"))),
+            new(Icons.Groups, "Students", new RelayCommand(() => OnRailAction?.Invoke("students"))),
+            new(Icons.Settings, "Class details", new RelayCommand(() => OnRailAction?.Invoke("details")))
+        ];
+    }
 
     partial void OnStudentSearchChanged(string value) => ApplyStudentFilter();
 
@@ -232,11 +272,19 @@ public partial class TeacherClassDetailViewModel : ObservableObject
     [ObservableProperty] private bool newAnnouncementPinned;
 
     /// <summary>
-    /// Whether this notice should stop showing on a date. Off by default: most
-    /// school notices have no natural end, and MAUI's DatePicker can't be null,
-    /// so a flag carries "no expiry" rather than a sentinel date.
+    /// Whether this notice should stop showing on a date.
+    ///
+    /// ON by default, with a fortnight's date already filled in. It used to
+    /// default off, which meant a notice only ever disappeared if its author
+    /// remembered to tick a box — so in practice nothing expired and the feed
+    /// filled up with last term's news. Making it opt-OUT means the common case
+    /// (a notice about something that happens on a date) is handled by doing
+    /// nothing, and the rarer standing notice costs one tap.
+    ///
+    /// MAUI's DatePicker can't hold null, so a flag carries "no expiry" rather
+    /// than a sentinel date.
     /// </summary>
-    [ObservableProperty] private bool newAnnouncementExpires;
+    [ObservableProperty] private bool newAnnouncementExpires = true;
 
     [ObservableProperty] private DateTime newAnnouncementExpiryDate = DateTime.Today.AddDays(14);
 
@@ -391,6 +439,7 @@ public partial class TeacherClassDetailViewModel : ObservableObject
         NewAnnouncementBody = string.Empty;
         NewAnnouncementPinned = false;
         NewAnnouncementExpires = false;
+        NewAnnouncementExpires = true;
         NewAnnouncementExpiryDate = DateTime.Today.AddDays(14);
     }
 
@@ -400,6 +449,7 @@ public partial class TeacherClassDetailViewModel : ObservableObject
         _classId = classId;
         IsBusy = true;
         StatusMessage = string.Empty;
+        _ = ChatUnread.LoadAllAsync(_chat, [(classId, ChatUnread)]);
         try
         {
             var schoolClass = await _classes.GetClassAsync(classId);
@@ -653,5 +703,19 @@ public partial class TeacherClassDetailViewModel : ObservableObject
 
         CrashLogger.Log("TeacherClassDetail", ex);
         return $"We couldn't {action}. Please try again.";
+    }
+
+    /// <summary>
+    /// Pull to refresh.
+    ///
+    /// The try/finally is load-bearing: LoadAsync opens with `if (IsBusy)
+    /// return`, so pulling while a load is already running would return without
+    /// ever clearing IsRefreshing, and the spinner would hang there forever.
+    /// </summary>
+    [RelayCommand]
+    private async Task RefreshAsync()
+    {
+        try { await LoadAsync(_classId); }
+        finally { IsRefreshing = false; }
     }
 }

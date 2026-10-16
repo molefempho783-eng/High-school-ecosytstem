@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    The school Newspaper: every article, and the form journalists write in.
+
+    Articles are a tile grid - you browse a newspaper, you don't work through
+    it. Tapping one opens the shared detail sheet, which is also where its
+    author edits it and where a teacher or admin takes it down.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.NewspaperPage"
+             x:DataType="viewModels:NewspaperViewModel"
+             Title="Newspaper">
+
+    <!-- Same one-button sidebar as every other pushed page. -->
+    <Grid ColumnDefinitions="44,*">
+        <RefreshView Grid.Column="1" IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshCommand}">
+            <ScrollView x:Name="ContentScroll" Style="{StaticResource PageCanvas}">
+                <VerticalStackLayout Spacing="0">
+
+                    <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                        <Label Text="Newspaper" FontSize="20" FontAttributes="Bold"
+                               TextColor="{StaticResource White}" />
+                        <Label Text="Stories from the school, written by our journalists" FontSize="13"
+                               TextColor="{StaticResource White}" Opacity="0.85" />
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource NavRuleBar}" />
+
+                    <VerticalStackLayout Padding="12" Spacing="12">
+
+                        <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                        <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
+                               IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
+
+                        <Button Text="Write an article" Style="{StaticResource BrandButton}"
+                                HorizontalOptions="Start"
+                                IsVisible="{Binding CanWrite}"
+                                Command="{Binding StartCreateCommand}" />
+
+                        <!-- ============ Compose ============ -->
+                        <Border x:Name="ComposeSection" Style="{StaticResource Widget}"
+                                IsVisible="{Binding IsFormVisible}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="{Binding FormHeading}" Style="{StaticResource WidgetTitle}" />
+                                <Label Text="Articles go live for the whole school as soon as you publish."
+                                       Style="{StaticResource RowSubtle}" />
+
+                                <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                    <Entry Placeholder="Headline" Text="{Binding NewTitle}" />
+                                </Border>
+
+                                <Border Style="{StaticResource WidgetInset}" Padding="8,2">
+                                    <Editor Placeholder="Write your article" Text="{Binding NewBody}"
+                                            AutoSize="TextChanges" MinimumHeightRequest="220" />
+                                </Border>
+
+                                <!-- ============ Picture ============ -->
+                                <!-- Hidden when no Storage bucket is configured:
+                                     the article still works without one. -->
+                                <VerticalStackLayout Spacing="8" Margin="0,4,0,0"
+                                                     IsVisible="{Binding CanAttachImage}">
+                                    <Label Text="Picture (optional)" Style="{StaticResource SectionHeading}"
+                                           FontSize="13" />
+                                    <Label Text="One image, up to 8 MB. It shows on the tile and at the top of the article."
+                                           Style="{StaticResource RowSubtle}" />
+
+                                    <!-- The picture already on the article being edited. -->
+                                    <VerticalStackLayout Spacing="6" IsVisible="{Binding HasExistingImage}">
+                                        <Border Style="{StaticResource WidgetInset}" Padding="0">
+                                            <Image Source="{Binding ExistingImageUrl}" Aspect="AspectFill"
+                                                   HeightRequest="140" />
+                                        </Border>
+                                        <Button Text="Remove picture" Style="{StaticResource BrandButtonOutline}"
+                                                HorizontalOptions="Start" FontSize="11" Padding="10,4"
+                                                MinimumHeightRequest="32"
+                                                Command="{Binding RemoveExistingImageCommand}" />
+                                    </VerticalStackLayout>
+
+                                    <Button Text="Choose a picture" Style="{StaticResource BrandButtonOutline}"
+                                            HorizontalOptions="Start" Clicked="OnChooseImageClicked" />
+
+                                    <!-- Picked but not yet sent. -->
+                                    <Border Style="{StaticResource WidgetInset}"
+                                            BackgroundColor="{StaticResource WarningFill}"
+                                            IsVisible="{Binding HasPickedImage}">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <VerticalStackLayout Grid.Column="0" Spacing="1">
+                                                <!-- Explicit colours: the warning fill is light in BOTH themes,
+                                                     so theme-following text went white in dark mode. -->
+                                                <Label Text="{Binding PickedImageLabel}" FontSize="12.5"
+                                                       FontAttributes="Bold"
+                                                       TextColor="{StaticResource TextPrimary}" />
+                                                <Label Text="Not uploaded yet — it goes up when you publish."
+                                                       Style="{StaticResource RowSubtle}"
+                                                       TextColor="{StaticResource TextSecondary}" />
+                                            </VerticalStackLayout>
+                                            <Button Grid.Column="1" Text="Remove"
+                                                    Style="{StaticResource BrandButtonOutline}"
+                                                    FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                                    Command="{Binding ClearPickedImageCommand}" />
+                                        </Grid>
+                                    </Border>
+                                </VerticalStackLayout>
+
+                                <HorizontalStackLayout Spacing="8">
+                                    <Button Text="{Binding SaveButtonText}" Style="{StaticResource BrandButton}"
+                                            Command="{Binding SaveCommand}" />
+                                    <Button Text="Cancel" Style="{StaticResource BrandButtonOutline}"
+                                            Command="{Binding CancelEditCommand}" />
+                                </HorizontalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- ============ Articles ============ -->
+                        <Border Style="{StaticResource Widget}" IsVisible="{Binding HasArticles}">
+                            <VerticalStackLayout Spacing="0">
+                                <HorizontalStackLayout Margin="0,0,0,10">
+                                    <Label Text="Articles" Style="{StaticResource WidgetTitle}" />
+                                    <Label Style="{StaticResource WidgetChevron}" />
+                                </HorizontalStackLayout>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Label Grid.Column="0" Text="Latest first" Style="{StaticResource SectionHeading}" />
+                                    <Border Grid.Column="1" Style="{StaticResource CountBadge}">
+                                        <Label Text="{Binding ArticlesCount}" Style="{StaticResource CountBadgeText}" />
+                                    </Border>
+                                </Grid>
+                                <BoxView Style="{StaticResource SectionRule}" />
+
+                                <FlexLayout BindableLayout.ItemsSource="{Binding Articles}"
+                                            Style="{StaticResource TileGrid}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="viewModels:ArticleRow">
+                                            <Border Style="{StaticResource TileWide}">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnArticleTapped" />
+                                                </Border.GestureRecognizers>
+                                                <VerticalStackLayout Spacing="0">
+                                                    <BoxView Style="{StaticResource TileAccent}"
+                                                             Color="{StaticResource BrandBright}" />
+                                                    <Image Source="{Binding ImageUrl}" Aspect="AspectFill"
+                                                           HeightRequest="150"
+                                                           IsVisible="{Binding HasImage}" />
+                                                    <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                        <Label Text="Newspaper" Style="{StaticResource TileKicker}" />
+                                                        <Label Text="{Binding Title}" Style="{StaticResource TileTitle}" />
+                                                        <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
+                                                        <Label Text="{Binding Preview}" Style="{StaticResource TileSubtle}"
+                                                               IsVisible="{Binding HasPreview}" />
+                                                    </VerticalStackLayout>
+                                                </VerticalStackLayout>
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Style="{StaticResource Widget}"
+                                IsVisible="{Binding EmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                            <Border Style="{StaticResource WidgetInset}">
+                                <Label Text="{Binding EmptyMessage}" Style="{StaticResource EmptyStateText}" />
+                            </Border>
+                        </Border>
+
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+        </RefreshView>
+        <!-- Declared LAST so it draws on top. -->
+        <controls:HomeRail Grid.Column="0" />
+    </Grid>
+</ContentPage>

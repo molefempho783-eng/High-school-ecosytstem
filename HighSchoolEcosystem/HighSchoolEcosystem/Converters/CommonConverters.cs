@@ -61,3 +61,67 @@ public sealed class HasItemsConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException($"{nameof(HasItemsConverter)} is one-way.");
 }
+
+/// <summary>
+/// Turns a collection into a height for a bounded list: as tall as its content,
+/// up to a cap, after which it scrolls.
+///
+/// This exists because of a genuine conflict. A <c>CollectionView</c> inside a
+/// <c>ScrollView</c> MUST be given a height — an unbounded one measures to zero
+/// and vanishes on mobile. But a fixed height reserves the same space for one
+/// exam as for ten, which is a wall of white under a single row.
+///
+/// So the height is computed instead: rows x rowHeight, capped. Dynamic where it
+/// matters, bounded where the layout demands it. Same reasoning as
+/// <c>UnitCardRow.FillWidth</c> — MAUI can't express this in XAML, so it's
+/// arithmetic in device units.
+///
+/// ConverterParameter is "rowHeight,maxRows", e.g. "58,4". Both are needed and
+/// they differ per list: a grade row carries three lines and a score, a work row
+/// carries two. Getting rowHeight wrong doesn't break anything — it just makes
+/// the list slightly too tall or scroll a row early.
+/// </summary>
+public sealed class ListHeightConverter : IValueConverter
+{
+    // Used when the parameter is missing or malformed. Two lines plus the rule,
+    // which is the commonest row in the app.
+    private const double DefaultRowHeight = 58;
+    private const int DefaultMaxRows = 4;
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var count = value is System.Collections.ICollection collection ? collection.Count : 0;
+
+        var (rowHeight, maxRows) = Parse(parameter);
+
+        // Zero rows would collapse the control; the section around it is hidden
+        // when empty anyway, so one row's worth is a safe floor and avoids a
+        // zero-height CollectionView ever existing.
+        var rows = Math.Clamp(count, 1, maxRows);
+
+        return rows * rowHeight;
+    }
+
+    private static (double RowHeight, int MaxRows) Parse(object? parameter)
+    {
+        if (parameter is not string text) return (DefaultRowHeight, DefaultMaxRows);
+
+        var parts = text.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2) return (DefaultRowHeight, DefaultMaxRows);
+
+        // InvariantCulture: the parameter is a literal in XAML, not user input,
+        // so it uses a dot regardless of the device's locale. Parsing it with
+        // the current culture would fail on any device set to a comma decimal.
+        if (!double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var rowHeight))
+            rowHeight = DefaultRowHeight;
+
+        if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var maxRows))
+            maxRows = DefaultMaxRows;
+
+        return (rowHeight <= 0 ? DefaultRowHeight : rowHeight,
+                maxRows <= 0 ? DefaultMaxRows : maxRows);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException($"{nameof(ListHeightConverter)} is one-way.");
+}

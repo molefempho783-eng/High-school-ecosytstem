@@ -18,9 +18,9 @@ public sealed record EditableMaterialRow(CourseMaterial Source, int Position, in
 
     public string Glyph => Source.Kind switch
     {
-        MaterialKind.Chapter => "\U0001F4D6",
-        MaterialKind.Link => "\U0001F517",
-        _ => "\U0001F5CE"
+        MaterialKind.Chapter => Icons.Chapter,
+        MaterialKind.Link => Icons.Link,
+        _ => Icons.File
     };
 
     /// <summary>Hides the move controls at the ends of the unit's list.</summary>
@@ -213,6 +213,14 @@ public partial class TeacherMaterialsViewModel : ObservableObject
     /// <summary>Maps picker labels back to unit IDs. Rebuilt on every load.</summary>
     private readonly Dictionary<string, string> _unitIdByLabel = new(StringComparer.Ordinal);
 
+    public string ClassId => _classId;
+
+    /// <summary>
+    /// Whether "Create from a textbook" is offered. It needs Storage for the
+    /// PDF; the AI itself runs in a Cloud Function and is checked there.
+    /// </summary>
+    public bool CanImportTextbook => _storage.IsConfigured;
+
     public void Initialise(string classId, string className)
     {
         _classId = classId;
@@ -372,7 +380,14 @@ public partial class TeacherMaterialsViewModel : ObservableObject
         => count == 1 ? $"1 {noun}" : $"{count} {noun}s";
 
     [RelayCommand]
-    private Task RefreshAsync() => LoadAsync();
+    private async Task RefreshAsync()
+    {
+        // try/finally, not `=> LoadAsync()`: LoadAsync opens with
+        // `if (IsBusy) return`, so pulling while a load is already running
+        // would return without clearing IsRefreshing and hang the spinner.
+        try { await LoadAsync(); }
+        finally { IsRefreshing = false; }
+    }
 
     [RelayCommand]
     private static void ToggleGroup(CourseGroupRow? group)

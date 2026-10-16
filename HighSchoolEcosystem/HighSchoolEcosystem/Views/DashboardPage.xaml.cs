@@ -53,6 +53,17 @@ public partial class DashboardPage : ContentPage
 
         try
         {
+            // A test or exam has nothing to hand in, so opening a submission
+            // page with no submit box would be a dead end. Show what it is and
+            // when it is instead.
+            if (row.IsAssessment)
+            {
+                await DetailPopup.ShowAsync(
+                    this, row.Title, row.DetailText,
+                    row.ClassName, row.AccentColor, canManage: false);
+                return;
+            }
+
             var page = _services.GetRequiredService<StudentAssignmentPage>();
             page.Load(row.ClassId, row.AssignmentId, row.Title, row.ClassName);
             await Navigation.PushAsync(page);
@@ -60,6 +71,31 @@ public partial class DashboardPage : ContentPage
         catch (Exception ex)
         {
             CrashLogger.Log("Navigate:StudentAssignment", ex);
+        }
+    }
+
+    /// <summary>
+    /// Tapping a mark opens the class it came from.
+    ///
+    /// A mark on its own says little; next to the rest of that subject's work
+    /// and its upcoming assessments it says a lot. Falls back to doing nothing
+    /// rather than guessing when the row has no class on it — grades recorded
+    /// before ClassId existed won't have one.
+    /// </summary>
+    private async void OnGradeTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is not GradeRow grade) return;
+        if (string.IsNullOrWhiteSpace(grade.ClassId)) return;
+
+        try
+        {
+            var page = _services.GetRequiredService<StudentClassPage>();
+            page.Load(grade.ClassId, grade.ClassName);
+            await Navigation.PushAsync(page);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Navigate:StudentClassFromGrade", ex);
         }
     }
 
@@ -92,13 +128,17 @@ public partial class DashboardPage : ContentPage
     {
         switch (action)
         {
+            // EVERY case scrolls. Account is the only rail item that opens
+            // another screen — cross-role links moved into the "Your other
+            // roles" widget, which this scrolls to like any other section.
+            case "roles": await ScrollToAsync(RolesSection); break;
             case "work": await ScrollToAsync(WorkSection); break;
             case "classes": await ScrollToAsync(ClassesSection); break;
+            case "grades": await ScrollToAsync(GradesSection); break;
             case "timetable": await ScrollToAsync(TimetableSection); break;
             case "announcements": await ScrollToAsync(AnnouncementsSection); break;
             case "sport": await ScrollToAsync(SportsSection); break;
-            case "teacher": await PushAsync<TeacherDashboardPage>(); break;
-            case "admin": await PushAsync<AdminDashboardPage>(); break;
+            case "newspaper": await ScrollToAsync(NewspaperSection); break;
             case "account": OnAccountClicked(this, EventArgs.Empty); break;
         }
     }
@@ -125,6 +165,68 @@ public partial class DashboardPage : ContentPage
     // serves both a Button's Clicked and a tap gesture.
     private async void OnSportsTapped(object? sender, EventArgs e)
         => await PushAsync<SportsPage>();
+
+    /// <summary>
+    /// Full details for one fixture, result or sports notice, in place.
+    ///
+    /// Read-only here whatever the reader's role: this is the student dashboard,
+    /// and editing sport belongs on the sports page next to the fields it needs.
+    /// </summary>
+    private async void OnSportsItemTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is not SportsRow row) return;
+
+        try
+        {
+            await DetailPopup.ShowAsync(
+                this, row.Title, row.Source.DetailText,
+                row.Source.SportAndTeam, Color.FromArgb("#8CC63E"), canManage: false);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Dashboard.SportsDetail", ex);
+        }
+    }
+
+    /// <summary>
+    /// The whole notice, plus who posted it. An admin gets Edit and Delete
+    /// behind "Manage"; everyone else just gets Close.
+    /// </summary>
+    private async void OnAnnouncementTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is not AnnouncementRow row) return;
+
+        try
+        {
+            var action = await DetailPopup.ShowAsync(
+                this, row.Title, row.Source.DetailText,
+                row.Source.ScopeLabel, row.AccentColor, row.CanManage);
+
+            switch (action)
+            {
+                case DetailAction.Edit:
+                    _viewModel.StartEditAnnouncementCommand.Execute(row);
+                    await ScrollToAsync(AnnouncementsSection);
+                    break;
+
+                case DetailAction.Delete:
+                    // Confirmed here rather than in the view model: nothing in
+                    // this app has undo, and a notice is gone for the whole
+                    // school the moment it goes.
+                    var sure = await DisplayAlertAsync(
+                        "Delete this announcement?",
+                        $"\"{row.Title}\" will be removed for everyone. This can't be undone.",
+                        "Delete", "Keep it");
+
+                    if (sure) _viewModel.DeleteAnnouncementCommand.Execute(row);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Dashboard.AnnouncementDetail", ex);
+        }
+    }
 
     private async void OnAccountClicked(object? sender, EventArgs e)
     {

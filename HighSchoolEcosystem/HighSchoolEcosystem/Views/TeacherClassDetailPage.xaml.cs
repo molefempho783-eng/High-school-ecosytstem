@@ -18,6 +18,56 @@ public partial class TeacherClassDetailPage : ContentPage
 
         // Creating a multiple-choice paper carries straight on to its questions.
         _viewModel.QuestionsRequested += OnQuestionsRequested;
+
+        // The view model owns WHICH rail items exist; this owns what they do.
+        // Every one of them scrolls — there is no Account item on a pushed
+        // page, so nothing here navigates at all.
+        _viewModel.OnRailAction = async action => await HandleRailAsync(action);
+    }
+
+    private async Task HandleRailAsync(string action)
+    {
+        switch (action)
+        {
+            // The one rail item on this page that isn't a scroll. Pops to the
+            // root rather than pushing a dashboard: the root already IS this
+            // user's home page, and pushing another would stack a duplicate.
+            case "home": await GoHomeAsync(); break;
+
+            case "content": await ScrollToAsync(ContentSection); break;
+            case "notices": await ScrollToAsync(NoticesSection); break;
+            case "work": await ScrollToAsync(WorkSection); break;
+            case "students": await ScrollToAsync(StudentsSection); break;
+            case "details": await ScrollToAsync(DetailsSection); break;
+        }
+    }
+
+    private async Task GoHomeAsync()
+    {
+        try
+        {
+            if (Navigation.NavigationStack.Count > 1)
+                await Navigation.PopToRootAsync();
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("TeacherClassDetail.GoHome", ex);
+        }
+    }
+
+    private async Task ScrollToAsync(VisualElement? target)
+    {
+        if (target is null || !target.IsVisible) return;
+
+        try
+        {
+            await ContentScroll.ScrollToAsync(target, ScrollToPosition.Start, animated: true);
+        }
+        catch (Exception ex)
+        {
+            // Scrolling to an element that hasn't been laid out yet throws.
+            CrashLogger.Log("TeacherClassDetail.ScrollTo", ex);
+        }
     }
 
     /// <summary>
@@ -44,6 +94,47 @@ public partial class TeacherClassDetailPage : ContentPage
 
     /// <summary>Called before pushing, to say which class is being opened.</summary>
     public void Load(string classId) => _classId = classId;
+
+    /// <summary>
+    /// Opens one student's full mark history for this class.
+    ///
+    /// The student comes off the tapped button's own BindingContext — the
+    /// enrolment list is a CollectionView used for ticking, so hijacking its
+    /// selection for navigation would fight the checkboxes.
+    /// </summary>
+    private async void OnStudentMarksClicked(object? sender, EventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is not StudentEnrolment student) return;
+        if (_classId is null) return;
+
+        try
+        {
+            var page = _services.GetRequiredService<TeacherStudentMarksPage>();
+            page.Load(_classId, _viewModel.ClassName, student.Uid, student.Name);
+            await Navigation.PushAsync(page);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Navigate:TeacherStudentMarks", ex);
+        }
+    }
+
+    /// <summary>Opens the class's group chat.</summary>
+    private async void OnClassChatTapped(object? sender, TappedEventArgs e)
+    {
+        if (_classId is null) return;
+
+        try
+        {
+            var page = _services.GetRequiredService<ClassChatPage>();
+            page.Load(_classId, _viewModel.EditName);
+            await Navigation.PushAsync(page);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Navigate:ClassChat", ex);
+        }
+    }
 
     /// <summary>Opens the course material editor for this class.</summary>
     private async void OnMaterialsClicked(object? sender, EventArgs e)
@@ -85,7 +176,7 @@ public partial class TeacherClassDetailPage : ContentPage
         const string mark = "Mark submissions";
         const string questions = "Set questions and answers";
 
-        var choice = await DisplayActionSheet(row.Title, "Cancel", null, mark, questions);
+        var choice = await DisplayActionSheetAsync(row.Title, "Cancel", null, mark, questions);
         if (choice is null || choice == "Cancel") return;
 
         try

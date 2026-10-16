@@ -1,54 +1,135 @@
 <?xml version="1.0" encoding="utf-8" ?>
+<!--
+    Manage classes: create one, or open one to enrol students and set work.
+
+    THE REFRESHVIEW TAKES EXACTLY ONE CHILD. It had two — a "Manage classes"
+    heading and the list — which is what broke this page. Everything scrollable
+    now lives inside the single ScrollView beneath it, and headings go in the
+    cards where they belong.
+
+    The class list is a tile grid rather than a CollectionView for the usual two
+    reasons: a CollectionView nested in a ScrollView collapses to zero height on
+    mobile, and grids are the default presentation everywhere else.
+-->
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
              xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
              x:Class="HighSchoolEcosystem.Views.TeacherClassesPage"
              x:DataType="viewModels:TeacherClassesViewModel"
              Title="My classes">
-    <Grid RowDefinitions="Auto,Auto,Auto,*" Padding="20,0,20,20" RowSpacing="12">
 
-        <VerticalStackLayout Grid.Row="0" Spacing="0" Margin="-20,-20,-20,0">
-            <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
-                <Label Text="My classes" FontSize="20" FontAttributes="Bold"
-                       TextColor="{StaticResource White}" />
-                <Label Text="Create classes and enrol students" FontSize="12"
-                       TextColor="{StaticResource White}" Opacity="0.85" />
-            </VerticalStackLayout>
-            <BoxView Style="{StaticResource NavRuleBar}" />
-        </VerticalStackLayout>
+    <!-- A one-button sidebar: the same left edge as the dashboards,
+         carrying the one thing a pushed page needs - a way home. -->
+    <Grid ColumnDefinitions="44,*">
+        <RefreshView Grid.Column="1" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}">
+            <ScrollView Style="{StaticResource PageCanvas}">
+                <VerticalStackLayout Spacing="0">
 
+                    <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                        <Label Text="My classes" FontSize="20" FontAttributes="Bold"
+                               TextColor="{StaticResource White}" />
+                        <Label Text="Create classes and enrol students" FontSize="12"
+                               TextColor="{StaticResource White}" Opacity="0.85" />
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource NavRuleBar}" />
 
-        <VerticalStackLayout Grid.Row="1" Spacing="8">
-            <Label Text="New class" FontAttributes="Bold" />
-            <Entry Placeholder="Class name, e.g. Grade 10A Mathematics" Text="{Binding NewName}" />
-            <Entry Placeholder="Subject, e.g. Mathematics" Text="{Binding NewSubject}" />
-            <Entry Placeholder="Room (optional)" Text="{Binding NewRoom}" />
-            <Button Text="Create class" Command="{Binding CreateCommand}" />
-        </VerticalStackLayout>
+                    <VerticalStackLayout Padding="12" Spacing="12">
 
-        <VerticalStackLayout Grid.Row="2" Spacing="4">
-            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
-            <Label Text="{Binding StatusMessage}" FontSize="13" />
-        </VerticalStackLayout>
+                        <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                        <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
+                               IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
 
-        <RefreshView Grid.Row="3" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}">
-            <CollectionView ItemsSource="{Binding Classes}" SelectionMode="Single"
-                            SelectionChanged="OnClassSelected">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="viewModels:TeacherClassRow">
-                        <Grid Padding="4,14" ColumnDefinitions="*,Auto">
-                            <VerticalStackLayout Grid.Column="0" Spacing="2">
-                                <Label Text="{Binding Name}" FontSize="16" />
-                                <Label Text="{Binding Subtitle}" Style="{StaticResource RowSubtle}" />
+                        <!-- ============ Manage classes ============ -->
+
+                        <!-- Above the create form: a teacher opens this page far more
+                             often to get into a class than to make a new one. -->
+                        <Border Style="{StaticResource Widget}">
+                            <VerticalStackLayout Spacing="0">
+                                <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8" Margin="0,0,0,4">
+                                    <Label Grid.Column="0" Text="Manage classes"
+                                           Style="{StaticResource WidgetTitle}" />
+                                    <Border Grid.Column="1" Style="{StaticResource CountBadge}"
+                                            IsVisible="{Binding Classes, Converter={StaticResource HasItems}}">
+                                        <Label Text="{Binding ClassCount}"
+                                               Style="{StaticResource CountBadgeText}" />
+                                    </Border>
+                                    <Label Grid.Column="2" Style="{StaticResource WidgetChevron}" />
+                                </Grid>
+                                <Label Text="Tap a class to enrol students, set work and add course material."
+                                       Style="{StaticResource RowSubtle}" Margin="0,0,0,12" />
+
+                                <FlexLayout BindableLayout.ItemsSource="{Binding Classes}"
+                                            Style="{StaticResource TileGrid}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="viewModels:TeacherClassRow">
+                                            <Border Style="{StaticResource Tile}">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnClassRowTapped" />
+                                                </Border.GestureRecognizers>
+                                                <VerticalStackLayout Spacing="0">
+                                                    <BoxView Style="{StaticResource ClassCardBanner}"
+                                                             Color="{Binding BannerColor}" />
+                                                    <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                        <Label Text="{Binding Heading}"
+                                                               Style="{StaticResource TileTitle}"
+                                                               HeightRequest="36" />
+                                                        <Label Text="{Binding Name}"
+                                                               Style="{StaticResource TileSubtle}"
+                                                               MaxLines="1" />
+                                                        <Label Text="{Binding CountLabel}"
+                                                               Style="{StaticResource TileMeta}" />
+                                                    </VerticalStackLayout>
+                                                </VerticalStackLayout>
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+
+                                <Border Style="{StaticResource WidgetInset}"
+                                        IsVisible="{Binding Classes, Converter={StaticResource NoItems}}">
+                                    <Label Text="No classes yet. Create your first one below."
+                                           Style="{StaticResource EmptyStateText}" />
+                                </Border>
                             </VerticalStackLayout>
-                            <Label Grid.Column="1" Text="›" FontSize="22" Opacity="0.4" VerticalOptions="Center" />
-                        </Grid>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-                <CollectionView.EmptyView>
-                    <Label Text="No classes yet. Create one above." Style="{StaticResource RowSubtle}" />
-                </CollectionView.EmptyView>
-            </CollectionView>
+                        </Border>
+
+                        <!-- ============ New class ============ -->
+
+                        <Border Style="{StaticResource Widget}">
+                            <VerticalStackLayout Spacing="0">
+                                <HorizontalStackLayout Margin="0,0,0,4">
+                                    <Label Text="New class" Style="{StaticResource WidgetTitle}" />
+                                    <Label Style="{StaticResource WidgetChevron}" />
+                                </HorizontalStackLayout>
+                                <Label Text="You become the teacher of any class you create. Students are enrolled afterwards, from inside the class."
+                                       Style="{StaticResource RowSubtle}" Margin="0,0,0,12" />
+
+                                <VerticalStackLayout Spacing="9">
+                                    <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                        <Entry Placeholder="Class name, e.g. Grade 10A Mathematics"
+                                               Text="{Binding NewName}" />
+                                    </Border>
+                                    <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                        <Entry Placeholder="Subject, e.g. Mathematics"
+                                               Text="{Binding NewSubject}" />
+                                    </Border>
+                                    <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                        <Entry Placeholder="Room (optional)" Text="{Binding NewRoom}" />
+                                    </Border>
+                                    <Button Text="Create class" Style="{StaticResource BrandButton}"
+                                            HorizontalOptions="Start" Command="{Binding CreateCommand}" />
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
         </RefreshView>
+        <!-- Declared LAST so it draws on top: several pages bleed
+             their header past the content edge with a negative
+             margin, which would otherwise paint over the rail. -->
+        <controls:HomeRail Grid.Column="0" />
     </Grid>
 </ContentPage>

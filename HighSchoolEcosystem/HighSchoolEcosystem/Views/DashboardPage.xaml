@@ -12,6 +12,7 @@
 -->
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:app="clr-namespace:HighSchoolEcosystem"
              xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
              xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
              x:Class="HighSchoolEcosystem.Views.DashboardPage"
@@ -28,13 +29,17 @@
 
         <!-- ================= Content ================= -->
 
+        <!-- Pull to refresh. Wraps only the ScrollView: the rail must stay
+             outside so dragging the page doesn't drag the rail with it, and so
+             it still draws last, on top. -->
+        <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}">
         <ScrollView x:Name="ContentScroll" Style="{StaticResource PageCanvas}">
             <VerticalStackLayout x:Name="ContentStack" Spacing="0">
 
                 <controls:DashboardHeader />
 
                 <!-- 44 on the left clears the floating rail. -->
-                <VerticalStackLayout Padding="52,12,10,12" Spacing="12">
+                <VerticalStackLayout Padding="50,12,8,12" Spacing="12">
 
                     <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
 
@@ -78,7 +83,7 @@
 
                     <!-- ============ Role switching ============ -->
 
-                    <Border Style="{StaticResource Widget}">
+                    <Border x:Name="RolesSection" Style="{StaticResource Widget}">
                         <Border.Triggers>
                             <MultiTrigger TargetType="Border">
                                 <MultiTrigger.Conditions>
@@ -113,6 +118,19 @@
                                 <Label Style="{StaticResource WidgetChevron}" />
                             </HorizontalStackLayout>
 
+                            <!--
+                                Three sections, each with its own heading and
+                                count badge: Overdue, then Tests and exams, then
+                                whatever the day picker is showing.
+
+                                Each list is a CollectionView with a FIXED
+                                height, so a long list scrolls in place instead
+                                of pushing the rest of the dashboard off screen.
+                                Bounded is the operative word - an UNbounded
+                                CollectionView inside a ScrollView collapses to
+                                nothing on mobile.
+                            -->
+
                             <!-- Overdue. Never filtered by the day picker: late
                                  work stays visible whatever day is selected. -->
                             <VerticalStackLayout IsVisible="{Binding HasOverdueWork}" Spacing="0">
@@ -124,30 +142,73 @@
                                 </Grid>
                                 <BoxView Style="{StaticResource SectionRule}" />
 
-                                <FlexLayout BindableLayout.ItemsSource="{Binding OverdueWork}"
-                                            Style="{StaticResource TileGrid}" Margin="0,0,0,6">
-                                    <BindableLayout.ItemTemplate>
+                                <CollectionView ItemsSource="{Binding OverdueWork}"
+                                                HeightRequest="{Binding OverdueWork, Converter={StaticResource ListHeight}, ConverterParameter='58,4'}" SelectionMode="None"
+                                                Margin="0,0,0,6">
+                                    <CollectionView.ItemTemplate>
                                         <DataTemplate x:DataType="viewModels:StudentWorkRow">
-                                            <Border Style="{StaticResource Tile}">
-                                                <Border.GestureRecognizers>
-                                                    <TapGestureRecognizer Tapped="OnWorkTapped" />
-                                                </Border.GestureRecognizers>
-                                                <VerticalStackLayout Spacing="0">
-                                                    <BoxView Style="{StaticResource TileAccent}"
-                                                             Color="{Binding AccentColor}" />
-                                                    <VerticalStackLayout Style="{StaticResource TileBody}">
-                                                        <Label Text="{Binding Kind}" Style="{StaticResource TileKicker}" />
-                                                        <Label Text="{Binding Title}" Style="{StaticResource TileTitle}"
-                                                               HeightRequest="36" />
-                                                        <Label Text="{Binding DueShort}" Style="{StaticResource TileMetaOverdue}" />
-                                                        <Label Text="{Binding ClassName}" Style="{StaticResource TileSubtle}"
-                                                               MaxLines="1" />
+                                            <VerticalStackLayout Spacing="0">
+                                                <Grid Style="{StaticResource ListRow}"
+                                                      ColumnDefinitions="Auto,*">
+                                                    <Grid.GestureRecognizers>
+                                                        <TapGestureRecognizer Tapped="OnWorkTapped" />
+                                                    </Grid.GestureRecognizers>
+                                                    <Label Grid.Column="0" Text="{Binding Glyph}"
+                                                           Style="{StaticResource RowIcon}" />
+                                                    <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                                        <Label Text="{Binding Title}"
+                                                               Style="{StaticResource RowTitle}" />
+                                                        <Label Text="{Binding MetaLine}"
+                                                               Style="{StaticResource RowMetaOverdue}" />
                                                     </VerticalStackLayout>
-                                                </VerticalStackLayout>
-                                            </Border>
+                                                </Grid>
+                                                <BoxView Style="{StaticResource RowRule}" />
+                                            </VerticalStackLayout>
                                         </DataTemplate>
-                                    </BindableLayout.ItemTemplate>
-                                </FlexLayout>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+                            </VerticalStackLayout>
+
+                            <!-- Tests and exams. Their own heading, above the
+                                 dates, because an exam buried among homework is
+                                 an exam that gets missed. Not day-filtered
+                                 either: one three weeks out still matters on a
+                                 Tuesday. -->
+                            <VerticalStackLayout IsVisible="{Binding HasAssessments}" Spacing="0">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Label Grid.Column="0" Text="Tests and exams"
+                                           Style="{StaticResource SectionHeading}" />
+                                    <Border Grid.Column="1" Style="{StaticResource CountBadge}">
+                                        <Label Text="{Binding AssessmentsCount}" Style="{StaticResource CountBadgeText}" />
+                                    </Border>
+                                </Grid>
+                                <BoxView Style="{StaticResource SectionRule}" />
+
+                                <CollectionView ItemsSource="{Binding Assessments}"
+                                                HeightRequest="{Binding Assessments, Converter={StaticResource ListHeight}, ConverterParameter='58,4'}" SelectionMode="None"
+                                                Margin="0,0,0,6">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate x:DataType="viewModels:StudentWorkRow">
+                                            <VerticalStackLayout Spacing="0">
+                                                <Grid Style="{StaticResource ListRow}"
+                                                      ColumnDefinitions="Auto,*">
+                                                    <Grid.GestureRecognizers>
+                                                        <TapGestureRecognizer Tapped="OnWorkTapped" />
+                                                    </Grid.GestureRecognizers>
+                                                    <Label Grid.Column="0" Text="{Binding Glyph}"
+                                                           Style="{StaticResource RowIcon}" />
+                                                    <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                                        <Label Text="{Binding Title}"
+                                                               Style="{StaticResource RowTitle}" />
+                                                        <Label Text="{Binding MetaLine}"
+                                                               Style="{StaticResource RowMeta}" />
+                                                    </VerticalStackLayout>
+                                                </Grid>
+                                                <BoxView Style="{StaticResource RowRule}" />
+                                            </VerticalStackLayout>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
                             </VerticalStackLayout>
 
                             <!-- Coming up, scoped to the selected day -->
@@ -161,34 +222,35 @@
                                 </Grid>
                                 <BoxView Style="{StaticResource SectionRule}" />
 
-                                <FlexLayout BindableLayout.ItemsSource="{Binding UpcomingWork}"
-                                            Style="{StaticResource TileGrid}" Margin="0,0,0,6">
-                                    <BindableLayout.ItemTemplate>
+                                <CollectionView ItemsSource="{Binding UpcomingWork}"
+                                                HeightRequest="{Binding UpcomingWork, Converter={StaticResource ListHeight}, ConverterParameter='58,5'}" SelectionMode="None"
+                                                Margin="0,0,0,6">
+                                    <CollectionView.ItemTemplate>
                                         <DataTemplate x:DataType="viewModels:StudentWorkRow">
-                                            <Border Style="{StaticResource Tile}">
-                                                <Border.GestureRecognizers>
-                                                    <TapGestureRecognizer Tapped="OnWorkTapped" />
-                                                </Border.GestureRecognizers>
-                                                <VerticalStackLayout Spacing="0">
-                                                    <BoxView Style="{StaticResource TileAccent}"
-                                                             Color="{Binding AccentColor}" />
-                                                    <VerticalStackLayout Style="{StaticResource TileBody}">
-                                                        <Label Text="{Binding Kind}" Style="{StaticResource TileKicker}" />
-                                                        <Label Text="{Binding Title}" Style="{StaticResource TileTitle}"
-                                                               HeightRequest="36" />
-                                                        <Label Text="{Binding DueShort}" Style="{StaticResource TileMeta}" />
-                                                        <Label Text="{Binding ClassName}" Style="{StaticResource TileSubtle}"
-                                                               MaxLines="1" />
+                                            <VerticalStackLayout Spacing="0">
+                                                <Grid Style="{StaticResource ListRow}"
+                                                      ColumnDefinitions="Auto,*">
+                                                    <Grid.GestureRecognizers>
+                                                        <TapGestureRecognizer Tapped="OnWorkTapped" />
+                                                    </Grid.GestureRecognizers>
+                                                    <Label Grid.Column="0" Text="{Binding Glyph}"
+                                                           Style="{StaticResource RowIcon}" />
+                                                    <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                                        <Label Text="{Binding Title}"
+                                                               Style="{StaticResource RowTitle}" />
+                                                        <Label Text="{Binding MetaLine}"
+                                                               Style="{StaticResource RowMeta}" />
                                                     </VerticalStackLayout>
-                                                </VerticalStackLayout>
-                                            </Border>
+                                                </Grid>
+                                                <BoxView Style="{StaticResource RowRule}" />
+                                            </VerticalStackLayout>
                                         </DataTemplate>
-                                    </BindableLayout.ItemTemplate>
-                                </FlexLayout>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
                             </VerticalStackLayout>
 
-                            <!-- All caught up. Replaces the tiles rather than
-                                 sitting beside an empty grid. -->
+                            <!-- All caught up. Replaces the lists rather than
+                                 sitting beside an empty one. -->
                             <Border Style="{StaticResource WidgetInset}" IsVisible="{Binding IsAllCaughtUp}"
                                     BackgroundColor="{StaticResource SuccessFill}">
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
@@ -205,6 +267,7 @@
 
                         </VerticalStackLayout>
                     </Border>
+
 
                     <!-- ============ My classes ============ -->
 
@@ -229,8 +292,15 @@
                                                 <TapGestureRecognizer Tapped="OnClassCardTapped" />
                                             </Border.GestureRecognizers>
                                             <VerticalStackLayout Spacing="0">
-                                                <BoxView Style="{StaticResource ClassCardBanner}"
-                                                         Color="{Binding BannerColor}" />
+                                                <!-- Banner, with the unread-chat circle over its corner. -->
+                                                <Grid>
+                                                    <BoxView Style="{StaticResource ClassCardBanner}"
+                                                             Color="{Binding BannerColor}" />
+                                                    <Border Style="{StaticResource UnreadBadge}" IsVisible="{Binding Unread.HasUnread}"
+                                                            SemanticProperties.Description="{Binding Unread.Description}">
+                                                        <Label Text="{Binding Unread.Label}" Style="{StaticResource UnreadBadgeText}" />
+                                                    </Border>
+                                                </Grid>
                                                 <VerticalStackLayout Padding="9,8" Spacing="0">
                                                     <Label Text="{Binding Heading}" Style="{StaticResource ClassCardTitle}" />
                                                     <Label Text="{Binding SubHeading}" Style="{StaticResource RowSubtle}"
@@ -244,6 +314,90 @@
                             </FlexLayout>
 
                             <Label Text="{Binding ClassCountLabel}" Style="{StaticResource WidgetFooterLink}" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- ============ My grades ============ -->
+
+                    <!--
+                        Marks from every class in one grid. Hidden entirely when
+                        the student isn't in any class — an empty grades card is
+                        noise on a dashboard that already says "no classes yet".
+                    -->
+                    <Border x:Name="GradesSection" Style="{StaticResource Widget}"
+                            IsVisible="{Binding HasClasses}">
+                        <VerticalStackLayout Spacing="0">
+                            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8" Margin="0,0,0,4">
+                                <Label Grid.Column="0" Text="My grades"
+                                       Style="{StaticResource WidgetTitle}" />
+                                <Border Grid.Column="1" Style="{StaticResource CountBadge}"
+                                        IsVisible="{Binding HasGrades}">
+                                    <Label Text="{Binding GradesCount}"
+                                           Style="{StaticResource CountBadgeText}" />
+                                </Border>
+                                <Label Grid.Column="2" Style="{StaticResource WidgetChevron}" />
+                            </Grid>
+
+                            <Label Text="{Binding GradeAverageLabel}"
+                                   Style="{StaticResource RowSubtle}" Margin="0,0,0,12"
+                                   IsVisible="{Binding HasGradeAverage}" />
+
+                            <!-- Narrow to one subject. The average follows the
+                                 filter: a student looking at Mathematics wants
+                                 their Mathematics average, not the school one. -->
+                            <Border Style="{StaticResource WidgetInset}" Padding="8,0" Margin="0,0,0,10">
+                                <Picker ItemsSource="{Binding GradeClasses}"
+                                        SelectedItem="{Binding SelectedGradeClass}"
+                                        Title="Filter by class" />
+                            </Border>
+
+                            <!-- Fixed height so a term of marks scrolls in
+                                 place rather than pushing the timetable and
+                                 everything under it off the screen. -->
+                            <CollectionView ItemsSource="{Binding MyGrades}"
+                                            HeightRequest="{Binding MyGrades, Converter={StaticResource ListHeight}, ConverterParameter='74,5'}" SelectionMode="None">
+                                <CollectionView.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:GradeRow">
+                                        <VerticalStackLayout Spacing="0">
+                                            <Grid Style="{StaticResource ListRow}"
+                                                  ColumnDefinitions="4,*,Auto">
+                                                <Grid.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnGradeTapped" />
+                                                </Grid.GestureRecognizers>
+
+                                                <!-- Banded by percentage. The colour
+                                                     speeds up scanning; the number
+                                                     is still the fact. -->
+                                                <BoxView Grid.Column="0" WidthRequest="4"
+                                                         Color="{Binding BandColor}"
+                                                         VerticalOptions="Fill" />
+
+                                                <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                                    <Label Text="{Binding Title}"
+                                                           Style="{StaticResource RowTitle}" />
+                                                    <Label Text="{Binding MetaLine}"
+                                                           Style="{StaticResource RowMeta}" />
+                                                    <Label Text="{Binding ClassName}"
+                                                           Style="{StaticResource RowSubtle}"
+                                                           MaxLines="1"
+                                                           IsVisible="{Binding HasClassName}" />
+                                                </VerticalStackLayout>
+
+                                                <Label Grid.Column="2" Text="{Binding ScoreLabel}"
+                                                       Style="{StaticResource RowValue}"
+                                                       TextColor="{Binding BandColor}" />
+                                            </Grid>
+                                            <BoxView Style="{StaticResource RowRule}" />
+                                        </VerticalStackLayout>
+                                    </DataTemplate>
+                                </CollectionView.ItemTemplate>
+                            </CollectionView>
+
+                            <Border Style="{StaticResource WidgetInset}"
+                                    IsVisible="{Binding GradesEmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                                <Label Text="{Binding GradesEmptyMessage}"
+                                       Style="{StaticResource EmptyStateText}" />
+                            </Border>
                         </VerticalStackLayout>
                     </Border>
 
@@ -268,28 +422,33 @@
                                         Title="Choose a day" />
                             </Border>
 
-                            <FlexLayout BindableLayout.ItemsSource="{Binding VisiblePeriods}"
-                                        Style="{StaticResource TileGrid}"
-                                        IsVisible="{Binding HasVisiblePeriods}">
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding VisiblePeriods}"
+                                                 Spacing="0"
+                                                 IsVisible="{Binding HasVisiblePeriods}">
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate x:DataType="viewModels:StudentPeriodRow">
-                                        <Border Style="{StaticResource Tile}">
-                                            <VerticalStackLayout Spacing="0">
-                                                <BoxView Style="{StaticResource TileAccent}"
-                                                         Color="{Binding SpineColor}" />
-                                                <VerticalStackLayout Style="{StaticResource TileBody}">
-                                                    <Label Text="{Binding DayLabel}" Style="{StaticResource TileKicker}" />
-                                                    <Label Text="{Binding Heading}" Style="{StaticResource TileTitle}"
-                                                           HeightRequest="36" />
-                                                    <Label Text="{Binding TimeAndPlace}" Style="{StaticResource TileMeta}" />
-                                                    <Label Text="{Binding ClassName}" Style="{StaticResource TileSubtle}"
-                                                           MaxLines="1" />
+                                        <VerticalStackLayout Spacing="0">
+                                            <Grid Style="{StaticResource ListRow}"
+                                                  ColumnDefinitions="4,*">
+                                                <!-- The class's own colour, so a period
+                                                     matches its card and its marks. -->
+                                                <BoxView Grid.Column="0" WidthRequest="4"
+                                                         Color="{Binding SpineColor}"
+                                                         VerticalOptions="Fill" />
+                                                <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                                    <Label Text="{Binding Heading}"
+                                                           Style="{StaticResource RowTitle}" />
+                                                    <Label Text="{Binding TimeAndPlace}"
+                                                           Style="{StaticResource RowMeta}" />
+                                                    <Label Text="{Binding DayLabel}"
+                                                           Style="{StaticResource RowSubtle}" />
                                                 </VerticalStackLayout>
-                                            </VerticalStackLayout>
-                                        </Border>
+                                            </Grid>
+                                            <BoxView Style="{StaticResource RowRule}" />
+                                        </VerticalStackLayout>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
-                            </FlexLayout>
+                            </VerticalStackLayout>
 
                             <Border Style="{StaticResource WidgetInset}"
                                     IsVisible="{Binding HasVisiblePeriods, Converter={StaticResource InvertedBool}}">
@@ -377,6 +536,11 @@
                                     <DataTemplate x:DataType="viewModels:AnnouncementRow">
                                         <Border Style="{StaticResource TileWide}"
                                                 Opacity="{Binding RowOpacity}">
+                                            <!-- The tile truncates the body; tapping
+                                                 shows the whole notice and who posted it. -->
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnAnnouncementTapped" />
+                                            </Border.GestureRecognizers>
                                             <VerticalStackLayout Spacing="0">
                                                 <!-- Class notices carry their class colour;
                                                      school-wide ones the brand accent. -->
@@ -384,7 +548,7 @@
                                                          Color="{Binding AccentColor}" />
                                                 <VerticalStackLayout Style="{StaticResource TileBody}">
                                                     <Grid ColumnDefinitions="*,Auto">
-                                                        <Label Grid.Column="0" Text="&#x1F4E2;"
+                                                        <Label Grid.Column="0" Text="{x:Static app:Icons.Announcement}"
                                                                Style="{StaticResource TileGlyph}" />
                                                         <HorizontalStackLayout Grid.Column="1" Spacing="5">
                                                             <Border Style="{StaticResource Chip}" Margin="0"
@@ -463,9 +627,18 @@
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate x:DataType="viewModels:SportsRow">
                                         <Border Style="{StaticResource Tile}">
+                                            <!-- Full details in place. Jumping to the
+                                                 sports page to read one fixture loses
+                                                 the reader's place on the dashboard. -->
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnSportsItemTapped" />
+                                            </Border.GestureRecognizers>
                                             <VerticalStackLayout Spacing="0">
                                                 <BoxView Style="{StaticResource TileAccent}"
                                                          Color="{StaticResource BrandAccent}" />
+                                                <Image Source="{Binding ImageUrl}" Aspect="AspectFill"
+                                                       HeightRequest="72"
+                                                       IsVisible="{Binding HasImage}" />
                                                 <VerticalStackLayout Style="{StaticResource TileBody}">
                                                     <Label Text="{Binding KindLabel}" Style="{StaticResource TileKicker}" />
                                                     <Label Text="{Binding Title}" Style="{StaticResource TileTitle}"
@@ -491,6 +664,11 @@
                         </VerticalStackLayout>
                     </Border>
 
+                    <!-- ============ Newspaper ============ -->
+                    <!-- Shared control - see Controls/NewspaperWidget.xaml. Hidden for
+                         visitors and guests; the rail item follows the same test. -->
+                    <controls:NewspaperWidget x:Name="NewspaperSection" />
+
                     <!-- ============ Coming soon ============ -->
 
                     <Border Style="{StaticResource Widget}">
@@ -503,7 +681,7 @@
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate x:DataType="x:String">
                                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="9">
-                                            <Label Grid.Column="0" Text="&#x25CF;" Style="{StaticResource RowIcon}" FontSize="8" />
+                                            <Label Grid.Column="0" Text="{x:Static app:Icons.Dot}" Style="{StaticResource RowIcon}" FontSize="8" />
                                             <Label Grid.Column="1" Text="{Binding .}" Style="{StaticResource RowSubtle}" />
                                         </Grid>
                                     </DataTemplate>
@@ -515,6 +693,7 @@
                 </VerticalStackLayout>
             </VerticalStackLayout>
         </ScrollView>
+        </RefreshView>
     
         <!-- Declared last so it draws ON TOP of the content it floats over.
              Shared with every other role's dashboard — see NavigationRail.xaml. -->

@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    "Create from a textbook": upload a PDF and let the AI draft the course.
+
+    The uploads are a short queue the teacher works through (review, publish),
+    so they're rows, not tiles. The AI runs server-side and takes minutes, so
+    the page polls while anything is still being read.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:app="clr-namespace:HighSchoolEcosystem"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.TeacherTextbooksPage"
+             x:DataType="viewModels:TeacherTextbooksViewModel"
+             Title="Create from a textbook">
+
+    <Grid ColumnDefinitions="44,*">
+        <RefreshView Grid.Column="1" IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshCommand}">
+            <ScrollView Style="{StaticResource PageCanvas}">
+                <VerticalStackLayout Spacing="0">
+
+                    <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                        <Label Text="Create from a textbook" FontSize="20" FontAttributes="Bold"
+                               TextColor="{StaticResource White}" />
+                        <Label Text="{Binding ClassName}" FontSize="13"
+                               TextColor="{StaticResource White}" Opacity="0.85" />
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource NavRuleBar}" />
+
+                    <VerticalStackLayout Padding="12" Spacing="12">
+
+                        <!-- ============ How it works + upload ============ -->
+                        <Border Style="{StaticResource Widget}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="Upload a textbook" Style="{StaticResource WidgetTitle}" />
+                                <Label Style="{StaticResource RowSubtle}"
+                                       Text="Choose a textbook PDF (up to 50 MB). The AI reads it and drafts one unit per chapter, each with study notes and an 8-question practice quiz." />
+                                <Label Style="{StaticResource RowSubtle}"
+                                       Text="Nothing is shown to students until you've reviewed a chapter and published it. The original PDF is added to the class when you publish the first chapter." />
+                                <Label Style="{StaticResource RowSubtle}"
+                                       Text="Only upload textbooks your school is allowed to share with its students." />
+
+                                <Button Text="Choose textbook PDF" Style="{StaticResource BrandButton}"
+                                        HorizontalOptions="Start"
+                                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBool}}"
+                                        Clicked="OnChooseTextbookClicked" />
+
+                                <HorizontalStackLayout Spacing="8" IsVisible="{Binding BusyMessage, Converter={StaticResource StringNotEmpty}}">
+                                    <ActivityIndicator IsRunning="True" HeightRequest="20" WidthRequest="20" />
+                                    <Label Text="{Binding BusyMessage}" Style="{StaticResource RowSubtle}"
+                                           VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Style="{StaticResource WidgetInset}" BackgroundColor="{StaticResource WarningFill}"
+                                IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}">
+                            <!-- Explicit colour: the fill is light in both themes. -->
+                            <Label Text="{Binding StatusMessage}" Style="{StaticResource EmptyStateText}"
+                                   TextColor="{StaticResource TextPrimary}" />
+                        </Border>
+
+                        <!-- ============ Uploads ============ -->
+                        <Border Style="{StaticResource Widget}" IsVisible="{Binding HasJobs}">
+                            <VerticalStackLayout Spacing="0">
+                                <HorizontalStackLayout Margin="0,0,0,10">
+                                    <Label Text="Your textbooks" Style="{StaticResource WidgetTitle}" />
+                                    <Label Style="{StaticResource WidgetChevron}" />
+                                </HorizontalStackLayout>
+                                <Label Text="Tap one to review its chapters." Style="{StaticResource RowSubtle}" Margin="0,0,0,6" />
+                                <BoxView Style="{StaticResource SectionRule}" />
+
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Jobs}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="viewModels:TextbookJobRow">
+                                            <VerticalStackLayout Spacing="0">
+                                                <Grid Style="{StaticResource ListRow}" ColumnDefinitions="Auto,*,Auto">
+                                                    <Grid.GestureRecognizers>
+                                                        <TapGestureRecognizer Tapped="OnJobTapped" />
+                                                    </Grid.GestureRecognizers>
+                                                    <Label Grid.Column="0" Text="{x:Static app:Icons.Chapter}" Style="{StaticResource RowIcon}" />
+                                                    <VerticalStackLayout Grid.Column="1" Spacing="2">
+                                                        <Label Text="{Binding Title}" Style="{StaticResource RowTitle}" />
+                                                        <Label Text="{Binding StatusLine}" Style="{StaticResource RowMeta}" />
+                                                        <Label Text="{Binding Meta}" Style="{StaticResource RowSubtle}" />
+                                                    </VerticalStackLayout>
+                                                    <ActivityIndicator Grid.Column="2" IsRunning="{Binding IsWorking}"
+                                                                       IsVisible="{Binding IsWorking}"
+                                                                       HeightRequest="20" WidthRequest="20" />
+                                                </Grid>
+                                                <BoxView Style="{StaticResource RowRule}" />
+                                            </VerticalStackLayout>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+        </RefreshView>
+        <controls:HomeRail Grid.Column="0" />
+    </Grid>
+</ContentPage>

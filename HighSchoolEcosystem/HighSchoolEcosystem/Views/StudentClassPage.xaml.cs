@@ -31,6 +31,20 @@ public partial class StudentClassPage : ContentPage
         await _viewModel.LoadAsync();
     }
 
+    private async void OnClassChatTapped(object? sender, TappedEventArgs e)
+    {
+        try
+        {
+            var page = _services.GetRequiredService<ClassChatPage>();
+            page.Load(_viewModel.ClassId, _viewModel.ClassName);
+            await Navigation.PushAsync(page);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Navigate:ClassChat", ex);
+        }
+    }
+
     private async void OnUnitTapped(object? sender, TappedEventArgs e)
     {
         if ((sender as BindableObject)?.BindingContext is not UnitCardRow card) return;

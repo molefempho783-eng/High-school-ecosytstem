@@ -53,16 +53,30 @@ a launch, not by how interesting they are.
 
 ## Part 2 — Blocking. Do not launch without these.
 
-### 2.1 It has never been compiled
+### 2.1 It has never been compiled — PARTLY DONE
 
-**This is the single biggest risk.** Everything was written without a
-.NET/MAUI toolchain. Structure, bindings, resource keys and rule logic have been
-checked by script, but no compiler or device has ever seen it.
+`dotnet build -f net10.0-android` now succeeds: **0 errors, 20 warnings.**
+That was the single biggest risk and it is materially reduced. What remains is
+everything a compiler cannot tell you.
 
-- [ ] `dotnet build` clean on every target
-- [ ] Runs on a real Android device, not just Windows
+- [x] Compiles for `net10.0-android`
+- [x] The one real binding warning fixed (`TocRow.CompletionGlyph` was missing,
+      so the contents tree fell back to runtime reflection on every row)
+- [x] 19 `CS0618` obsolete-API warnings cleared — MAUI 10 deprecated the
+      synchronous `DisplayAlert` / `DisplayActionSheet` in favour of the `Async`
+      forms, and they will be removed in a later release
+- [ ] `dotnet build` clean on **every** target, not just android. The csproj also
+      targets `net10.0-ios`, `net10.0-maccatalyst` and `net10.0-windows` on
+      Windows; iOS and MacCatalyst need a paired Mac, which is the most likely
+      reason Visual Studio reports a failed build while the android-only CLI
+      build succeeds
+- [ ] Runs on a real Android device, not just the emulator
 - [ ] Every screen opened at least once by hand
 - [ ] Fix whatever that surfaces before anything else on this list
+
+**Compiling is not working.** Nothing below has been exercised at runtime: no
+screen has been opened, no rule has been hit by a real request, no upload has
+been attempted from a device.
 
 ### 2.2 Destructive actions have no confirmation
 

@@ -22,10 +22,14 @@ public partial class TeacherClassesPage : ContentPage
         await _viewModel.LoadAsync();
     }
 
-    private async void OnClassSelected(object? sender, SelectionChangedEventArgs e)
+    /// <summary>
+    /// The class list is a BindableLayout tile grid now, not a CollectionView,
+    /// so there is no selection model — the item comes off the tapped tile's
+    /// own BindingContext, the same way the teacher dashboard does it.
+    /// </summary>
+    private async void OnClassRowTapped(object? sender, TappedEventArgs e)
     {
-        if (e.CurrentSelection.FirstOrDefault() is not TeacherClassRow row) return;
-        if (sender is CollectionView collectionView) collectionView.SelectedItem = null;
+        if ((sender as BindableObject)?.BindingContext is not TeacherClassRow row) return;
 
         try
         {

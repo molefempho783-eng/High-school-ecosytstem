@@ -63,6 +63,10 @@
 
 		<!-- Images -->
 		<MauiImage Include="Resources\Images\*" />
+		<!-- Sidebar icons (rail_*.svg, written by tools/fonts/build-icon-font.py).
+		     Tinted white for the dark rail and converted to PNG for every
+		     platform at build time, so they never depend on a font loading. -->
+		<MauiImage Update="Resources\Images\rail_*.svg" TintColor="#FFFFFF" BaseSize="24,24" />
 		
 		<!-- Custom Fonts -->
 		<MauiFont Include="Resources\Fonts\*" />
@@ -71,11 +75,37 @@
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>
 
-	<!-- No GoogleServicesJson / GoogleService-Info.plist items here on purpose.
-	     This app talks to Firebase entirely over its REST API (see
-	     Services/FirebaseAuthService.cs and Services/FirestoreClient.cs), so no
-	     native Firebase SDK is linked and those files aren't needed. Add them
-	     back only if a native SDK returns — e.g. push notifications via FCM. -->
+	<!-- Push notifications (FCM) — the ONE native Firebase SDK in the app.
+	     Everything else still goes over REST (FirebaseAuthService,
+	     FirestoreClient). It is referenced for Android and iOS ONLY: native
+	     Firebase threw PlatformNotSupportedException on Windows, which is why
+	     the SDKs were removed in the first place. All code that touches it is
+	     inside #if ANDROID || IOS (Services/PushNotificationService.cs).
+
+	     The config files are optional at build time: until they're added the
+	     app builds and runs, and push simply stays off. See RUNNING.md,
+	     "Push notifications". -->
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' Or $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+		<PackageReference Include="Plugin.Firebase.CloudMessaging" Version="4.0.1" />
+	</ItemGroup>
+
+	<!-- PUSH_CONFIGURED is defined only when this platform's config file is
+	     present, so the app never tries to start Firebase without it (which
+	     would throw on launch). -->
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' And Exists('Platforms\Android\google-services.json')">
+		<DefineConstants>$(DefineConstants);PUSH_CONFIGURED</DefineConstants>
+	</PropertyGroup>
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' And Exists('Platforms\iOS\GoogleService-Info.plist')">
+		<DefineConstants>$(DefineConstants);PUSH_CONFIGURED</DefineConstants>
+	</PropertyGroup>
+
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' And Exists('Platforms\Android\google-services.json')">
+		<GoogleServicesJson Include="Platforms\Android\google-services.json" />
+	</ItemGroup>
+
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' And Exists('Platforms\iOS\GoogleService-Info.plist')">
+		<BundleResource Include="Platforms\iOS\GoogleService-Info.plist" Link="GoogleService-Info.plist" />
+	</ItemGroup>
 
 	<ItemGroup>
 

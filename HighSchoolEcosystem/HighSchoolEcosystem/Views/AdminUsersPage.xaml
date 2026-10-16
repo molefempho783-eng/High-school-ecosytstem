@@ -1,50 +1,59 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
              xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
              x:Class="HighSchoolEcosystem.Views.AdminUsersPage"
              x:DataType="viewModels:AdminUsersViewModel"
              Title="Manage users">
-    <Grid RowDefinitions="Auto,Auto,Auto,*" Padding="20,0,20,20" RowSpacing="12">
+    <!-- A one-button sidebar: the same left edge as the dashboards,
+         carrying the one thing a pushed page needs - a way home. -->
+    <Grid ColumnDefinitions="44,*">
+        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto,*" Padding="20,0,20,20" RowSpacing="12">
 
-        <VerticalStackLayout Grid.Row="0" Spacing="0" Margin="-20,-20,-20,0">
-            <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
-                <Label Text="Manage users" FontSize="20" FontAttributes="Bold"
-                       TextColor="{StaticResource White}" />
-                <Label Text="Roles and parent links for registered people" FontSize="12"
-                       TextColor="{StaticResource White}" Opacity="0.85" />
+            <VerticalStackLayout Grid.Row="0" Spacing="0" Margin="-20,-20,-20,0">
+                <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                    <Label Text="Manage users" FontSize="20" FontAttributes="Bold"
+                           TextColor="{StaticResource White}" />
+                    <Label Text="Roles and parent links for registered people" FontSize="12"
+                           TextColor="{StaticResource White}" Opacity="0.85" />
+                </VerticalStackLayout>
+                <BoxView Style="{StaticResource NavRuleBar}" />
             </VerticalStackLayout>
-            <BoxView Style="{StaticResource NavRuleBar}" />
-        </VerticalStackLayout>
 
 
-        <SearchBar Grid.Row="1" Placeholder="Search by name, email or role"
-                   Text="{Binding SearchText}" />
+            <SearchBar Grid.Row="1" Placeholder="Search by name, email or role"
+                       Text="{Binding SearchText}" />
 
-        <VerticalStackLayout Grid.Row="2" Spacing="4">
-            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
-            <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}" />
-        </VerticalStackLayout>
+            <VerticalStackLayout Grid.Row="2" Spacing="4">
+                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}" />
+            </VerticalStackLayout>
 
-        <RefreshView Grid.Row="3" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}">
-            <CollectionView ItemsSource="{Binding Users}"
-                            SelectionMode="Single"
-                            SelectionChanged="OnUserSelected">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="viewModels:AdminUserRow">
-                        <Grid Padding="4,14" ColumnDefinitions="*,Auto">
-                            <VerticalStackLayout Grid.Column="0" Spacing="2">
-                                <Label Text="{Binding Name}" FontSize="16" />
-                                <Label Text="{Binding Subtitle}" Style="{StaticResource RowSubtle}" />
-                                <Label Text="{Binding LinkedSummary}" Style="{StaticResource RowSubtle}"
-                                       IsVisible="{Binding HasLinked}" />
-                            </VerticalStackLayout>
-                            <Label Grid.Column="1" Text="›" FontSize="22" Opacity="0.4"
-                                   VerticalOptions="Center" />
-                        </Grid>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
-        </RefreshView>
+            <RefreshView Grid.Row="3" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}">
+                <CollectionView ItemsSource="{Binding Users}"
+                                SelectionMode="Single"
+                                SelectionChanged="OnUserSelected">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="viewModels:AdminUserRow">
+                            <Grid Padding="4,14" ColumnDefinitions="*,Auto">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="{Binding Name}" FontSize="16" />
+                                    <Label Text="{Binding Subtitle}" Style="{StaticResource RowSubtle}" />
+                                    <Label Text="{Binding LinkedSummary}" Style="{StaticResource RowSubtle}"
+                                           IsVisible="{Binding HasLinked}" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="1" Text="›" FontSize="22" Opacity="0.4"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </RefreshView>
+        </Grid>
+        <!-- Declared LAST so it draws on top: several pages bleed
+             their header past the content edge with a negative
+             margin, which would otherwise paint over the rail. -->
+        <controls:HomeRail Grid.Column="0" />
     </Grid>
 </ContentPage>

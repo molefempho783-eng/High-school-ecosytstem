@@ -57,9 +57,9 @@ public sealed record MaterialRow(CourseMaterial Source, bool IsCompleted)
 
     public string Glyph => Source.Kind switch
     {
-        MaterialKind.Chapter => "\U0001F4D6",
-        MaterialKind.Link => "\U0001F517",
-        _ => "\U0001F5CE"
+        MaterialKind.Chapter => Icons.Chapter,
+        MaterialKind.Link => Icons.Link,
+        _ => Icons.File
     };
 
     /// <summary>Tick shown against completed items in the contents tree.</summary>
@@ -69,6 +69,22 @@ public sealed record MaterialRow(CourseMaterial Source, bool IsCompleted)
 /// <summary>One marked piece of work, for the grades list.</summary>
 public sealed record GradeRow(string Title, AssignmentKind Kind, int Score, int OutOf, DateTimeOffset DueDate)
 {
+    /// <summary>
+    /// Which class this mark belongs to. Empty inside a single class, where the
+    /// heading already says it; set on the dashboard, where marks from every
+    /// subject are merged into one grid and "17 / 20" is meaningless without it.
+    /// </summary>
+    public string ClassName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Which class this mark belongs to. Carried so the dashboard can filter by
+    /// class and open the class when a mark is tapped — a mark is only ever
+    /// interesting next to the rest of that subject's work.
+    /// </summary>
+    public string ClassId { get; init; } = string.Empty;
+
+    public bool HasClassName => !string.IsNullOrWhiteSpace(ClassName);
+
     public bool HasScore => Score >= 0 && OutOf > 0;
 
     public string ScoreLabel => HasScore ? $"{Score} / {OutOf}" : "Not marked";
@@ -160,7 +176,16 @@ public partial class StudentClassViewModel : ObservableObject
     private List<CourseMaterial> _materials = [];
     private ClassProgress _progress = new();
 
-    public StudentClassViewModel(IClassService classes) => _classes = classes;
+    private readonly IClassChatService _chat;
+
+    public StudentClassViewModel(IClassService classes, IClassChatService chat)
+    {
+        _classes = classes;
+        _chat = chat;
+    }
+
+    /// <summary>Unread messages, shown on the "Class chat" row.</summary>
+    public ChatUnread ChatUnread { get; } = new();
 
     [ObservableProperty] private bool isBusy;
     [ObservableProperty] private bool isRefreshing;
@@ -225,6 +250,10 @@ public partial class StudentClassViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
+            // Unawaited: one COUNT read; refreshed each time the page appears,
+            // so coming back from the chat clears it.
+            _ = ChatUnread.LoadAllAsync(_chat, [(_classId, ChatUnread)]);
+
             _units = (await _classes.GetUnitsAsync(_classId)).ToList();
             _materials = (await _classes.GetMaterialsAsync(_classId)).ToList();
             _progress = await _classes.GetMyProgressAsync(_classId);

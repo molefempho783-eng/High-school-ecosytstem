@@ -13,7 +13,12 @@ public partial class TeacherClassesViewModel : ObservableObject
     [ObservableProperty] private bool isBusy;
     [ObservableProperty] private bool isRefreshing;
     [ObservableProperty] private string statusMessage = string.Empty;
-    [ObservableProperty] private ObservableCollection<TeacherClassRow> classes = [];
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ClassCount))]
+    private ObservableCollection<TeacherClassRow> classes = [];
+
+    /// <summary>The number on the badge beside "Manage classes".</summary>
+    public string ClassCount => Classes.Count.ToString();
 
     [ObservableProperty] private string newName = string.Empty;
     [ObservableProperty] private string newSubject = string.Empty;
@@ -28,9 +33,7 @@ public partial class TeacherClassesViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            var mine = await _classes.GetMyClassesAsync();
-            Classes = new ObservableCollection<TeacherClassRow>(
-                mine.Select(c => new TeacherClassRow(c.Id, c.Name, c.Subject, c.StudentIds.Count)));
+            await ReloadAsync();
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
@@ -42,6 +45,31 @@ public partial class TeacherClassesViewModel : ObservableObject
             StatusMessage = "We couldn't load your classes. Please try again.";
         }
         finally { IsBusy = false; }
+    }
+
+    /// <summary>
+    /// Rebuilds the tile grid. One method rather than the same four lines in
+    /// both LoadAsync and CreateAsync — they had drifted apart already, and a
+    /// newly created class would have come back without its banner colour.
+    ///
+    /// Colours are assigned by ordering class IDs, the same rule the dashboards
+    /// use, so a class is the same colour wherever a teacher sees it.
+    /// </summary>
+    private async Task ReloadAsync()
+    {
+        var mine = await _classes.GetMyClassesAsync();
+        var palette = DashboardShellViewModel.BannerPalette;
+
+        var colourByClassId = mine
+            .OrderBy(c => c.Id, StringComparer.Ordinal)
+            .Select((c, i) => (c.Id, Colour: palette[i % palette.Count]))
+            .ToDictionary(x => x.Id, x => x.Colour, StringComparer.Ordinal);
+
+        Classes = new ObservableCollection<TeacherClassRow>(
+            mine.Select(c => new TeacherClassRow(c.Id, c.Name, c.Subject, c.StudentIds.Count)
+            {
+                BannerColor = colourByClassId.TryGetValue(c.Id, out var col) ? col : palette[0]
+            }));
     }
 
     [RelayCommand]
@@ -72,9 +100,7 @@ public partial class TeacherClassesViewModel : ObservableObject
             NewSubject = string.Empty;
             NewRoom = string.Empty;
 
-            var mine = await _classes.GetMyClassesAsync();
-            Classes = new ObservableCollection<TeacherClassRow>(
-                mine.Select(c => new TeacherClassRow(c.Id, c.Name, c.Subject, c.StudentIds.Count)));
+            await ReloadAsync();
 
             StatusMessage = $"Created {name}. Open it to enrol students.";
         }

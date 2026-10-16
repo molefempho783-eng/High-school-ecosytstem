@@ -62,13 +62,13 @@ public partial class StudentAssignmentPage : ContentPage
         }
         catch (PermissionException)
         {
-            await DisplayAlert("Permission needed",
+            await DisplayAlertAsync("Permission needed",
                 "Allow file access in your device settings to attach a file.", "OK");
         }
         catch (Exception ex)
         {
             CrashLogger.Log("StudentAssignment.PickFile", ex);
-            await DisplayAlert("Couldn't open that file",
+            await DisplayAlertAsync("Couldn't open that file",
                 "Please try a different file.", "OK");
         }
     }

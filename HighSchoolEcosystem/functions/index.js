@@ -19,6 +19,18 @@ import { logger } from 'firebase-functions';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
+// AI textbook import (Gemini on Vertex AI). Re-exported so `firebase deploy`
+// finds them; see textbooks.js.
+export { generateTextbookOutline, generateTextbookChapter } from './textbooks.js';
+
+// Push notifications for announcements, class notices, homework, marks, the
+// Newspaper, sport, team notices, class chat and daily due reminders.
+export {
+  notifyAnnouncement, notifyClassNotice, notifyNewAssignment, notifyWorkMarked,
+  notifyArticle, notifySport, notifyTeamNotice, notifyChatMessage, remindDueTomorrow,
+  notifyDirectMessage,
+} from './notifications.js';
+
 initializeApp();
 const db = getFirestore();
 

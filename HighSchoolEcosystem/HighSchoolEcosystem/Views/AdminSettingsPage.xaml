@@ -1,46 +1,55 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
              xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
              x:Class="HighSchoolEcosystem.Views.AdminSettingsPage"
              x:DataType="viewModels:AdminSettingsViewModel"
              Title="School settings">
-    <ScrollView Style="{StaticResource PageCanvas}">
-        <VerticalStackLayout Spacing="0">
-            <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
-                <Label Text="School settings" FontSize="20" FontAttributes="Bold"
-                       TextColor="{StaticResource White}" />
-                <Label Text="Name and branding shown across the app" FontSize="12"
-                       TextColor="{StaticResource White}" Opacity="0.85" />
+    <!-- A one-button sidebar: the same left edge as the dashboards,
+         carrying the one thing a pushed page needs - a way home. -->
+    <Grid ColumnDefinitions="44,*">
+        <ScrollView Grid.Column="1" Style="{StaticResource PageCanvas}">
+            <VerticalStackLayout Spacing="0">
+                <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                    <Label Text="School settings" FontSize="20" FontAttributes="Bold"
+                           TextColor="{StaticResource White}" />
+                    <Label Text="Name and branding shown across the app" FontSize="12"
+                           TextColor="{StaticResource White}" Opacity="0.85" />
+                </VerticalStackLayout>
+                <BoxView Style="{StaticResource NavRuleBar}" />
+
+                <VerticalStackLayout Padding="24" Spacing="12">
+
+                <Label Text="School name" FontAttributes="Bold" />
+                <Entry Text="{Binding DisplayName}" Placeholder="Demo High School" />
+
+                <Label Text="Primary colour" FontAttributes="Bold" Margin="0,8,0,0" />
+                <Entry Text="{Binding PrimaryColor}" Placeholder="#156B76" />
+
+                <Label Text="Secondary colour" FontAttributes="Bold" />
+                <Entry Text="{Binding SecondaryColor}" Placeholder="#123A5A" />
+
+                <Label Text="Accent colour" FontAttributes="Bold" />
+                <Entry Text="{Binding AccentColor}" Placeholder="#E98D52" />
+
+                <Label Text="Logo URL" FontAttributes="Bold" />
+                <Entry Text="{Binding LogoUrl}" Placeholder="https://…" Keyboard="Url" />
+
+                <Button Text="Save settings" Command="{Binding SaveCommand}" Margin="0,12,0,0" />
+                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                <Label Text="{Binding StatusMessage}" HorizontalTextAlignment="Center" />
+
+                <Border Padding="12" StrokeThickness="1" Margin="0,12,0,0">
+                    <Label FontSize="12" Opacity="0.75"
+                           Text="These values are stored in Firestore. The app currently reads its branding from the build-time appsettings.json, so changes here won't show up in the UI until that's switched over — see PLAN.md." />
+                </Border>
             </VerticalStackLayout>
-            <BoxView Style="{StaticResource NavRuleBar}" />
-
-            <VerticalStackLayout Padding="24" Spacing="12">
-
-            <Label Text="School name" FontAttributes="Bold" />
-            <Entry Text="{Binding DisplayName}" Placeholder="Demo High School" />
-
-            <Label Text="Primary colour" FontAttributes="Bold" Margin="0,8,0,0" />
-            <Entry Text="{Binding PrimaryColor}" Placeholder="#156B76" />
-
-            <Label Text="Secondary colour" FontAttributes="Bold" />
-            <Entry Text="{Binding SecondaryColor}" Placeholder="#123A5A" />
-
-            <Label Text="Accent colour" FontAttributes="Bold" />
-            <Entry Text="{Binding AccentColor}" Placeholder="#E98D52" />
-
-            <Label Text="Logo URL" FontAttributes="Bold" />
-            <Entry Text="{Binding LogoUrl}" Placeholder="https://…" Keyboard="Url" />
-
-            <Button Text="Save settings" Command="{Binding SaveCommand}" Margin="0,12,0,0" />
-            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
-            <Label Text="{Binding StatusMessage}" HorizontalTextAlignment="Center" />
-
-            <Border Padding="12" StrokeThickness="1" Margin="0,12,0,0">
-                <Label FontSize="12" Opacity="0.75"
-                       Text="These values are stored in Firestore. The app currently reads its branding from the build-time appsettings.json, so changes here won't show up in the UI until that's switched over — see PLAN.md." />
-            </Border>
-        </VerticalStackLayout>
-        </VerticalStackLayout>
-    </ScrollView>
+            </VerticalStackLayout>
+        </ScrollView>
+        <!-- Declared LAST so it draws on top: several pages bleed
+             their header past the content edge with a negative
+             margin, which would otherwise paint over the rail. -->
+        <controls:HomeRail Grid.Column="0" />
+    </Grid>
 </ContentPage>

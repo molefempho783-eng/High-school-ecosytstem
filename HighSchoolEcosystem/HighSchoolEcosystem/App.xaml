@@ -22,6 +22,10 @@
             <converters:InvertedBoolConverter x:Key="InvertedBool" />
             <converters:HasItemsConverter x:Key="HasItems" />
             <converters:NoItemsConverter x:Key="NoItems" />
+
+            <!-- Sizes a bounded list to its content, up to a cap.
+                 ConverterParameter is "rowHeight,maxRows". -->
+            <converters:ListHeightConverter x:Key="ListHeight" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

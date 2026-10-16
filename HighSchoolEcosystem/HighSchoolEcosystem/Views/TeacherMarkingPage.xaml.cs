@@ -40,7 +40,7 @@ public partial class TeacherMarkingPage : ContentPage
         catch (Exception ex)
         {
             CrashLogger.Log("TeacherMarking.OpenFile", ex);
-            await DisplayAlert("Can't open this",
+            await DisplayAlertAsync("Can't open this",
                 "We couldn't open that file. Check your connection and try again.", "OK");
         }
     }

@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    Review one textbook's AI drafts, chapter by chapter.
+
+    The chapters are a queue to work through - rows, in book order. Tapping one
+    opens it in the editor card at the top: the notes are editable, quiz
+    questions can be removed, and Publish copies it into the class. Anything
+    beyond that (rewording a question, moving the due date) is done afterwards
+    with the class's normal tools, because a published chapter is ordinary
+    course content.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:app="clr-namespace:HighSchoolEcosystem"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.TeacherTextbookReviewPage"
+             x:DataType="viewModels:TeacherTextbookReviewViewModel"
+             Title="Review drafts">
+
+    <Grid ColumnDefinitions="44,*">
+        <RefreshView Grid.Column="1" IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshCommand}">
+            <ScrollView x:Name="ContentScroll" Style="{StaticResource PageCanvas}">
+                <VerticalStackLayout Spacing="0">
+
+                    <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                        <Label Text="{Binding BookTitle}" FontSize="20" FontAttributes="Bold"
+                               TextColor="{StaticResource White}" />
+                        <Label Text="{Binding JobStatusLine}" FontSize="13"
+                               TextColor="{StaticResource White}" Opacity="0.85" />
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource NavRuleBar}" />
+
+                    <VerticalStackLayout Padding="12" Spacing="12">
+
+                        <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+                        <Border Style="{StaticResource WidgetInset}" BackgroundColor="{StaticResource WarningFill}"
+                                IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}">
+                            <!-- Explicit colour: the fill is light in both themes. -->
+                            <Label Text="{Binding StatusMessage}" Style="{StaticResource EmptyStateText}"
+                                   TextColor="{StaticResource TextPrimary}" />
+                        </Border>
+
+                        <!-- ============ Editor ============ -->
+                        <Border x:Name="EditorSection" Style="{StaticResource Widget}" IsVisible="{Binding HasSelection}">
+                            <VerticalStackLayout Spacing="10">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                        <Label Text="{Binding SelectedHeading}" Style="{StaticResource WidgetTitle}" />
+                                        <Label Text="{Binding SelectedMeta}" Style="{StaticResource RowSubtle}" />
+                                    </VerticalStackLayout>
+                                    <Button Grid.Column="1" Text="Close" Style="{StaticResource BrandButtonOutline}"
+                                            FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                            VerticalOptions="Start"
+                                            Command="{Binding CloseEditorCommand}" />
+                                </Grid>
+
+                                <Label IsVisible="{Binding IsSelectedPublished}" Style="{StaticResource RowSubtle}"
+                                       Text="Published. To change it now, edit it under Course content and Assignments like any other unit." />
+
+                                <Label Text="Unit title" Style="{StaticResource SectionHeading}" FontSize="13" />
+                                <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                    <Entry Text="{Binding EditTitle}" IsEnabled="{Binding CanEdit}" />
+                                </Border>
+
+                                <Label Text="Study notes" Style="{StaticResource SectionHeading}" FontSize="13" />
+                                <Label Text="Written by AI from the textbook. Read them before publishing — check facts, wording and level."
+                                       Style="{StaticResource RowSubtle}" />
+                                <Border Style="{StaticResource WidgetInset}" Padding="8,2">
+                                    <Editor Text="{Binding EditNotes}" IsEnabled="{Binding CanEdit}"
+                                            AutoSize="TextChanges" MinimumHeightRequest="260" />
+                                </Border>
+
+                                <!-- ============ Quiz ============ -->
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+                                    <Label Grid.Column="0" Text="Practice quiz" Style="{StaticResource SectionHeading}" />
+                                    <Border Grid.Column="1" Style="{StaticResource CountBadge}">
+                                        <Label Text="{Binding QuestionsCount}" Style="{StaticResource CountBadgeText}" />
+                                    </Border>
+                                </Grid>
+                                <BoxView Style="{StaticResource SectionRule}" />
+                                <Label Text="✓ marks the correct answer. Remove any question you wouldn't set."
+                                       Style="{StaticResource RowSubtle}" IsVisible="{Binding HasQuestions}" />
+                                <Label Text="No quiz questions for this chapter." Style="{StaticResource RowSubtle}"
+                                       IsVisible="{Binding HasQuestions, Converter={StaticResource InvertedBool}}" />
+
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Questions}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="viewModels:TextbookQuestionRow">
+                                            <VerticalStackLayout Spacing="0">
+                                                <Grid Style="{StaticResource ListRow}" ColumnDefinitions="*,Auto">
+                                                    <VerticalStackLayout Grid.Column="0" Spacing="4">
+                                                        <Label Text="{Binding Heading}" Style="{StaticResource RowTitle}" />
+                                                        <Label Text="{Binding OptionsText}" Style="{StaticResource RowMeta}" />
+                                                    </VerticalStackLayout>
+                                                    <Button Grid.Column="1" Text="Remove" Style="{StaticResource BrandButtonOutline}"
+                                                            FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                                            VerticalOptions="Start"
+                                                            IsVisible="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherTextbookReviewViewModel}}, Path=CanEdit}"
+                                                            Clicked="OnRemoveQuestionClicked" />
+                                                </Grid>
+                                                <BoxView Style="{StaticResource RowRule}" />
+                                            </VerticalStackLayout>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+
+                                <!-- ============ Actions ============ -->
+                                <FlexLayout Wrap="Wrap" JustifyContent="Start" Margin="0,6,0,0">
+                                    <Button Text="Publish to class" Style="{StaticResource BrandButton}"
+                                            Margin="0,0,8,8"
+                                            IsVisible="{Binding CanPublish}" Clicked="OnPublishClicked" />
+                                    <Button Text="Save draft" Style="{StaticResource BrandButtonOutline}"
+                                            Margin="0,0,8,8"
+                                            IsVisible="{Binding CanEdit}" Command="{Binding SaveDraftCommand}" />
+                                    <Button Text="Write again" Style="{StaticResource BrandButtonOutline}"
+                                            Margin="0,0,8,8"
+                                            IsVisible="{Binding CanRetry}" Clicked="OnRetryClicked" />
+                                    <Button Text="Discard draft" Style="{StaticResource BrandButtonOutline}"
+                                            Margin="0,0,8,8"
+                                            IsVisible="{Binding IsSelectedPublished, Converter={StaticResource InvertedBool}}"
+                                            Clicked="OnDiscardClicked" />
+                                </FlexLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- ============ Chapters ============ -->
+                        <Border Style="{StaticResource Widget}" IsVisible="{Binding HasChapters}">
+                            <VerticalStackLayout Spacing="0">
+                                <HorizontalStackLayout Margin="0,0,0,10">
+                                    <Label Text="Chapters" Style="{StaticResource WidgetTitle}" />
+                                    <Label Style="{StaticResource WidgetChevron}" />
+                                </HorizontalStackLayout>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Label Grid.Column="0" Text="Ready to review" Style="{StaticResource SectionHeading}" />
+                                    <Border Grid.Column="1" Style="{StaticResource CountBadge}">
+                                        <Label Text="{Binding ReadyCount}" Style="{StaticResource CountBadgeText}" />
+                                    </Border>
+                                </Grid>
+                                <BoxView Style="{StaticResource SectionRule}" />
+                                <Label Text="{Binding PublishedSummary}" Style="{StaticResource RowSubtle}"
+                                       Margin="0,0,0,4" />
+
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Chapters}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="viewModels:TextbookChapterRow">
+                                            <VerticalStackLayout Spacing="0">
+                                                <Grid Style="{StaticResource ListRow}" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                    <Grid.GestureRecognizers>
+                                                        <TapGestureRecognizer Tapped="OnChapterTapped" />
+                                                    </Grid.GestureRecognizers>
+                                                    <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                                        <Label Text="{Binding Title}" Style="{StaticResource RowTitle}">
+                                                            <Label.Triggers>
+                                                                <DataTrigger TargetType="Label" Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="FontAttributes" Value="Bold" />
+                                                                </DataTrigger>
+                                                            </Label.Triggers>
+                                                        </Label>
+                                                        <Label Text="{Binding Meta}" Style="{StaticResource RowMeta}">
+                                                            <Label.Triggers>
+                                                                <DataTrigger TargetType="Label" Binding="{Binding IsFailed}" Value="True">
+                                                                    <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource OverdueText}, Dark={StaticResource OverdueTextDark}}" />
+                                                                </DataTrigger>
+                                                            </Label.Triggers>
+                                                        </Label>
+                                                    </VerticalStackLayout>
+                                                    <!-- Reviewed and published: already in the class. -->
+                                                    <Label Grid.Column="1" Text="{x:Static app:Icons.Published}"
+                                                           FontFamily="MaterialSymbols" FontSize="22"
+                                                           TextColor="{AppThemeBinding Light={StaticResource SuccessText}, Dark={StaticResource SuccessTextDark}}"
+                                                           VerticalOptions="Center"
+                                                           IsVisible="{Binding IsPublished}"
+                                                           SemanticProperties.Description="Published to the class" />
+                                                </Grid>
+                                                <BoxView Style="{StaticResource RowRule}" />
+                                            </VerticalStackLayout>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Button Text="Delete this import" Style="{StaticResource BrandButtonOutline}"
+                                HorizontalOptions="Start" Clicked="OnDeleteJobClicked" />
+
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+        </RefreshView>
+        <controls:HomeRail Grid.Column="0" />
+    </Grid>
+</ContentPage>

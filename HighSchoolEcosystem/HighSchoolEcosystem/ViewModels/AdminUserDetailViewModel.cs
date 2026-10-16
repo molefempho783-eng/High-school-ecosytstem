@@ -51,6 +51,18 @@ public partial class AdminUserDetailViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<StudentLink> students = [];
     [ObservableProperty] private bool isParentSelected;
 
+    /// <summary>
+    /// Parent picker, shown when the user being edited is a student — the same
+    /// link as the student picker above, seen from the other side, because an
+    /// admin enrolling a pupil usually has the parents' names in front of them.
+    /// Reuses StudentLink: it's just "a person, ticked or not".
+    /// </summary>
+    [ObservableProperty] private ObservableCollection<StudentLink> parents = [];
+    [ObservableProperty] private bool isStudentSelected;
+
+    /// <summary>Each parent's links as loaded, so a save changes only what was ticked or unticked.</summary>
+    private Dictionary<string, List<string>> _parentLinks = [];
+
     /// <summary>True when the admin is editing their own account.</summary>
     [ObservableProperty] private bool isSelf;
 
@@ -68,6 +80,7 @@ public partial class AdminUserDetailViewModel : ObservableObject
     private void UpdateRoleFlags(Role value)
     {
         IsParentSelected = value == Role.Parent;
+        IsStudentSelected = value == Role.Student;
 
         // Losing admin means losing it as BOTH primary and extra — an admin who
         // demotes their primary role but keeps Admin ticked hasn't demoted.
@@ -134,6 +147,18 @@ public partial class AdminUserDetailViewModel : ObservableObject
                        Name = string.IsNullOrWhiteSpace(s.DisplayName) ? s.Email : s.DisplayName,
                        IsLinked = target.LinkedStudentIds.Contains(s.Uid)
                    }));
+
+            var parentUsers = all.Where(u => u.HasRole(Role.Parent) && u.Uid != uid).ToList();
+            _parentLinks = parentUsers.ToDictionary(p => p.Uid, p => p.LinkedStudentIds.ToList());
+            Parents = new ObservableCollection<StudentLink>(
+                parentUsers
+                   .OrderBy(p => p.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                   .Select(p => new StudentLink
+                   {
+                       Uid = p.Uid,
+                       Name = string.IsNullOrWhiteSpace(p.DisplayName) ? p.Email : p.DisplayName,
+                       IsLinked = p.LinkedStudentIds.Contains(uid)
+                   }));
         }
         catch (Exception ex)
         {
@@ -191,6 +216,25 @@ public partial class AdminUserDetailViewModel : ObservableObject
                 ? Students.Where(s => s.IsLinked).Select(s => s.Uid).ToList()
                 : [];
             await _admin.SetLinkedStudentsAsync(_uid, linked);
+
+            // Student side: add or remove THIS student on each parent whose tick
+            // changed, leaving their other children untouched. Only the changed
+            // parents are written.
+            if (SelectedRole == Role.Student)
+            {
+                foreach (var parent in Parents)
+                {
+                    var current = _parentLinks.TryGetValue(parent.Uid, out var list) ? list : [];
+                    var wasLinked = current.Contains(_uid);
+                    if (parent.IsLinked == wasLinked) continue;
+
+                    var updated = parent.IsLinked
+                        ? current.Append(_uid).Distinct().ToList()
+                        : current.Where(id => id != _uid).ToList();
+                    await _admin.SetLinkedStudentsAsync(parent.Uid, updated);
+                    _parentLinks[parent.Uid] = updated;
+                }
+            }
 
             StatusMessage = "Saved.";
             Saved?.Invoke(this, EventArgs.Empty);

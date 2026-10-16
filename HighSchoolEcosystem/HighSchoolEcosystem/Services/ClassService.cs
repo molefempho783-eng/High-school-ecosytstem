@@ -390,6 +390,10 @@ public sealed class ClassService : IClassService
                 FileName = material.FileName,
                 FileSizeBytes = material.FileSizeBytes,
                 Order = material.Order,
+                // Were missing from all three projections, so every material
+                // read back as loose — units never held anything.
+                UnitId = material.UnitId ?? string.Empty,
+                Theme = material.Theme?.Trim() ?? string.Empty,
                 // Must equal request.auth.uid or the rule denies the create.
                 AuthorId = session.UserId,
                 AuthorName = profile?.DisplayName ?? session.Email ?? string.Empty,
@@ -414,6 +418,8 @@ public sealed class ClassService : IClassService
                 ["FileName"] = material.FileName,
                 ["FileSizeBytes"] = material.FileSizeBytes,
                 ["Order"] = material.Order,
+                ["UnitId"] = material.UnitId ?? string.Empty,
+                ["Theme"] = material.Theme?.Trim() ?? string.Empty,
                 ["UpdatedAt"] = DateTimeOffset.UtcNow
             }, cancellationToken);
 
@@ -575,11 +581,17 @@ public sealed class ClassService : IClassService
     /// </summary>
     private static readonly TimeSpan MarkingQueueWindow = TimeSpan.FromDays(45);
 
+    // Assignments due more than this far in the future are excluded too: a
+    // teacher who sets a whole term at once shouldn't pay a read per assignment
+    // on every dashboard open for work nobody has touched yet.
+    private static readonly TimeSpan MarkingQueueLookahead = TimeSpan.FromDays(120);
+
     public async Task<IReadOnlyList<MarkingQueueItem>> GetMarkingQueueAsync(
         IReadOnlyList<SchoolClass> classes, CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
         var oldest = now - MarkingQueueWindow;
+        var furthest = now + MarkingQueueLookahead;
         var queue = new List<MarkingQueueItem>();
 
         foreach (var schoolClass in classes)
@@ -589,12 +601,22 @@ public sealed class ClassService : IClassService
             {
                 var assignments = await GetAssignmentsAsync(schoolClass.Id, cancellationToken);
 
-                // Only work that can be handed in, and only once its deadline
-                // has passed — marking before then would be marking a class
-                // that hasn't finished writing.
+                // Work that can be handed in, whose deadline is recent or still
+                // ahead.
+                //
+                // It used to also require `DueDate <= now`, on the reasoning
+                // that marking before the deadline is marking a class that
+                // hasn't finished writing. That was wrong, and it broke the
+                // badge: students hand work in EARLY. Anything submitted before
+                // its due date was counted on the class page, which has no date
+                // filter, and silently missing from this dashboard queue — which
+                // is exactly the "it only works on the class page" symptom.
+                //
+                // The window is still needed, since this costs a read per
+                // assignment; it just has to be one-sided.
                 var due = assignments
                     .Where(a => a.Kind.IsSubmittable())
-                    .Where(a => a.DueDate <= now && a.DueDate >= oldest)
+                    .Where(a => a.DueDate >= oldest && a.DueDate <= furthest)
                     .ToList();
 
                 if (due.Count == 0) continue;
@@ -628,23 +650,36 @@ public sealed class ClassService : IClassService
         }
 
         // Longest-waiting first: the work that has been sitting unmarked the
-        // longest is the work a teacher is most overdue on.
+        // longest is the work a teacher is most overdue on. Work whose deadline
+        // hasn't arrived yet sorts naturally to the end, which is right — it's
+        // early hand-ins, not a backlog.
         return queue.OrderBy(q => q.DueDate).ToList();
     }
 
     public Task SetGradeAsync(
         string classId, string assignmentId, string studentId, int grade, string feedback,
-        CancellationToken cancellationToken = default)
-        => _firestore.PatchFieldsAsync(
+        string studentName = "", CancellationToken cancellationToken = default)
+    {
+        var fields = new Dictionary<string, object?>
+        {
+            ["Grade"] = grade,
+            ["Feedback"] = feedback.Trim(),
+            // Stamped so the work leaves the "needs marking" queue and the
+            // auto-marker can tell a human grade from its own.
+            ["TeacherMarkedAt"] = DateTimeOffset.UtcNow
+        };
+
+        // A teacher can grade work that was never handed in — marking a test
+        // written on paper, or awarding zero for a missed assignment. The PATCH
+        // creates the document in that case, and it would otherwise have no name
+        // on it, leaving the marking screen showing "Unknown student".
+        if (!string.IsNullOrWhiteSpace(studentName))
+            fields["StudentName"] = studentName.Trim();
+
+        return _firestore.PatchFieldsAsync(
             $"classes/{classId}/assignments/{assignmentId}/submissions/{studentId}",
-            new Dictionary<string, object?>
-            {
-                ["Grade"] = grade,
-                ["Feedback"] = feedback.Trim(),
-                // Stamped so the work leaves the "needs marking" queue and the
-                // auto-marker can tell a human grade from its own.
-                ["TeacherMarkedAt"] = DateTimeOffset.UtcNow
-            }, cancellationToken);
+            fields, cancellationToken);
+    }
 
     // The document ID is the student's UID and isn't in the body.
     private static Submission WithStudentId(Submission value, string studentId) => new()
@@ -1037,6 +1072,8 @@ public sealed class ClassService : IClassService
         FileName = source.FileName,
         FileSizeBytes = source.FileSizeBytes,
         Order = source.Order,
+        UnitId = source.UnitId,
+        Theme = source.Theme,
         AuthorId = source.AuthorId,
         AuthorName = source.AuthorName,
         CreatedAt = source.CreatedAt,

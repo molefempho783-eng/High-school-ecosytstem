@@ -1,82 +1,113 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
              xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
              x:Class="HighSchoolEcosystem.Views.AdminUserDetailPage"
              x:DataType="viewModels:AdminUserDetailViewModel"
              Title="Edit user">
-    <ScrollView Style="{StaticResource PageCanvas}">
-        <VerticalStackLayout Spacing="0">
-            <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
-                <Label Text="User" FontSize="20" FontAttributes="Bold"
-                       TextColor="{StaticResource White}" />
-                <Label Text="Roles and links for this person" FontSize="12"
-                       TextColor="{StaticResource White}" Opacity="0.85" />
-            </VerticalStackLayout>
-            <BoxView Style="{StaticResource NavRuleBar}" />
-
-            <VerticalStackLayout Padding="24" Spacing="16">
-
-            <VerticalStackLayout Spacing="2">
-                <Label Text="{Binding DisplayName}" Style="{StaticResource Headline}" />
-                <Label Text="{Binding Email}" Style="{StaticResource RowSubtle}" />
-            </VerticalStackLayout>
-
-            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
-
-            <Label Text="Primary role" FontAttributes="Bold" Margin="0,8,0,0" />
-            <Label Text="Decides which dashboard they land on."
-                   Style="{StaticResource RowSubtle}" />
-            <Picker ItemsSource="{Binding AvailableRoles}"
-                    SelectedItem="{Binding SelectedRole}" />
-
-            <Label Text="Additional roles" FontAttributes="Bold" Margin="0,8,0,0" />
-            <Label Text="Held alongside the primary role — e.g. an admin who also teaches, or a student who also writes for the newspaper."
-                   Style="{StaticResource RowSubtle}" />
-            <CollectionView ItemsSource="{Binding ExtraRoles}" HeightRequest="200">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="viewModels:RoleOption">
-                        <Grid Padding="0,8" ColumnDefinitions="Auto,*">
-                            <CheckBox Grid.Column="0" IsChecked="{Binding IsGranted}" />
-                            <Label Grid.Column="1" Text="{Binding Name}"
-                                   VerticalOptions="Center" FontSize="15" />
-                        </Grid>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
-
-            <Border IsVisible="{Binding IsSelfDemotion}" Padding="12" StrokeThickness="1">
-                <VerticalStackLayout Spacing="4">
-                    <Label Text="This is your own account" FontAttributes="Bold" />
-                    <Label FontSize="13"
-                           Text="Saving will remove your admin access. If you're the only administrator, restoring it means editing Firestore directly." />
+    <!-- A one-button sidebar: the same left edge as the dashboards,
+         carrying the one thing a pushed page needs - a way home. -->
+    <Grid ColumnDefinitions="44,*">
+        <ScrollView Grid.Column="1" Style="{StaticResource PageCanvas}">
+            <VerticalStackLayout Spacing="0">
+                <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                    <Label Text="User" FontSize="20" FontAttributes="Bold"
+                           TextColor="{StaticResource White}" />
+                    <Label Text="Roles and links for this person" FontSize="12"
+                           TextColor="{StaticResource White}" Opacity="0.85" />
                 </VerticalStackLayout>
-            </Border>
+                <BoxView Style="{StaticResource NavRuleBar}" />
 
-            <VerticalStackLayout IsVisible="{Binding IsParentSelected}" Spacing="8" Margin="0,8,0,0">
-                <Label Text="Linked students" FontAttributes="Bold" />
-                <Label Text="This parent will be able to view grades and attendance for whoever is ticked here."
+                <VerticalStackLayout Padding="24" Spacing="16">
+
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="{Binding DisplayName}" Style="{StaticResource Headline}" />
+                    <Label Text="{Binding Email}" Style="{StaticResource RowSubtle}" />
+                </VerticalStackLayout>
+
+                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+                <Label Text="Primary role" FontAttributes="Bold" Margin="0,8,0,0" />
+                <Label Text="Decides which dashboard they land on."
                        Style="{StaticResource RowSubtle}" />
+                <Picker ItemsSource="{Binding AvailableRoles}"
+                        SelectedItem="{Binding SelectedRole}" />
 
-                <CollectionView ItemsSource="{Binding Students}" HeightRequest="260">
+                <Label Text="Additional roles" FontAttributes="Bold" Margin="0,8,0,0" />
+                <Label Text="Held alongside the primary role — e.g. an admin who also teaches, or a student who also writes for the newspaper."
+                       Style="{StaticResource RowSubtle}" />
+                <CollectionView ItemsSource="{Binding ExtraRoles}" HeightRequest="{Binding ExtraRoles, Converter={StaticResource ListHeight}, ConverterParameter='46,5'}">
                     <CollectionView.ItemTemplate>
-                        <DataTemplate x:DataType="viewModels:StudentLink">
-                            <Grid Padding="0,10" ColumnDefinitions="Auto,*">
-                                <CheckBox Grid.Column="0" IsChecked="{Binding IsLinked}" />
+                        <DataTemplate x:DataType="viewModels:RoleOption">
+                            <Grid Padding="0,8" ColumnDefinitions="Auto,*">
+                                <CheckBox Grid.Column="0" IsChecked="{Binding IsGranted}" />
                                 <Label Grid.Column="1" Text="{Binding Name}"
                                        VerticalOptions="Center" FontSize="15" />
                             </Grid>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
-                    <CollectionView.EmptyView>
-                        <Label Text="No students have registered yet." Style="{StaticResource RowSubtle}" />
-                    </CollectionView.EmptyView>
                 </CollectionView>
-            </VerticalStackLayout>
 
-            <Button Text="Save changes" Command="{Binding SaveCommand}" Margin="0,8,0,0" />
-            <Label Text="{Binding StatusMessage}" HorizontalTextAlignment="Center" />
-        </VerticalStackLayout>
-        </VerticalStackLayout>
-    </ScrollView>
+                <Border IsVisible="{Binding IsSelfDemotion}" Padding="12" StrokeThickness="1">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="This is your own account" FontAttributes="Bold" />
+                        <Label FontSize="13"
+                               Text="Saving will remove your admin access. If you're the only administrator, restoring it means editing Firestore directly." />
+                    </VerticalStackLayout>
+                </Border>
+
+                <VerticalStackLayout IsVisible="{Binding IsParentSelected}" Spacing="8" Margin="0,8,0,0">
+                    <Label Text="Linked students" FontAttributes="Bold" />
+                    <Label Text="This parent will be able to view grades for whoever is ticked here, and message the teachers of their classes."
+                           Style="{StaticResource RowSubtle}" />
+
+                    <CollectionView ItemsSource="{Binding Students}" HeightRequest="{Binding Students, Converter={StaticResource ListHeight}, ConverterParameter='58,5'}">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="viewModels:StudentLink">
+                                <Grid Padding="0,10" ColumnDefinitions="Auto,*">
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsLinked}" />
+                                    <Label Grid.Column="1" Text="{Binding Name}"
+                                           VerticalOptions="Center" FontSize="15" />
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                        <CollectionView.EmptyView>
+                            <Label Text="No students have registered yet." Style="{StaticResource RowSubtle}" />
+                        </CollectionView.EmptyView>
+                    </CollectionView>
+                </VerticalStackLayout>
+
+                <!-- The same parent-child link, from the student's side. -->
+                <VerticalStackLayout IsVisible="{Binding IsStudentSelected}" Spacing="8" Margin="0,8,0,0">
+                    <Label Text="Parents" FontAttributes="Bold" />
+                    <Label Text="Ticked parents can follow this student's work and grades, and can message the teachers of this student's classes."
+                           Style="{StaticResource RowSubtle}" />
+
+                    <CollectionView ItemsSource="{Binding Parents}" HeightRequest="{Binding Parents, Converter={StaticResource ListHeight}, ConverterParameter='58,5'}">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="viewModels:StudentLink">
+                                <Grid Padding="0,10" ColumnDefinitions="Auto,*">
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsLinked}" />
+                                    <Label Grid.Column="1" Text="{Binding Name}"
+                                           VerticalOptions="Center" FontSize="15" />
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                        <CollectionView.EmptyView>
+                            <Label Text="No parents have registered yet." Style="{StaticResource RowSubtle}" />
+                        </CollectionView.EmptyView>
+                    </CollectionView>
+                </VerticalStackLayout>
+
+                <Button Text="Save changes" Command="{Binding SaveCommand}" Margin="0,8,0,0" />
+                <Label Text="{Binding StatusMessage}" HorizontalTextAlignment="Center" />
+            </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+        <!-- Declared LAST so it draws on top: several pages bleed
+             their header past the content edge with a negative
+             margin, which would otherwise paint over the rail. -->
+        <controls:HomeRail Grid.Column="0" />
+    </Grid>
 </ContentPage>

@@ -20,6 +20,7 @@
 -->
 <ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:app="clr-namespace:HighSchoolEcosystem"
              xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
              x:Class="HighSchoolEcosystem.Controls.NavigationRail"
              x:DataType="viewModels:DashboardShellViewModel"
@@ -31,8 +32,13 @@
     <!-- A shadow, so the rail reads as sitting above the page rather than as a
          stripe painted on it. -->
     <ContentView.Shadow>
-        <Shadow Brush="{StaticResource Black}" Opacity="0.25"
-                Radius="8" Offset="2,0" />
+        <!-- Radius 5 / offset 1, NOT 8 / 2. The old values threw the shadow
+             out to roughly x=54, across the first characters of any title
+             sitting at 52 — which on a dark banner reads exactly as "the
+             heading is hidden by the sidebar". The lift still reads; it just
+             stops landing on text. -->
+        <Shadow Brush="{StaticResource Black}" Opacity="0.22"
+                Radius="5" Offset="1,0" />
     </ContentView.Shadow>
     <ScrollView VerticalScrollBarVisibility="Never" HorizontalScrollBarVisibility="Never">
         <VerticalStackLayout Style="{StaticResource IconRail}">
@@ -42,7 +48,8 @@
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding ToggleRailCommand}" />
                 </Grid.GestureRecognizers>
-                <Label Grid.Column="0" Text="&#x2261;" Style="{StaticResource RailGlyph}" />
+                <Image Grid.Column="0" Source="rail_menu.png" Style="{StaticResource RailIcon}"
+                       SemanticProperties.Description="Menu" />
                 <Label Grid.Column="1" Text="Menu" Style="{StaticResource RailLabel}"
                        IsVisible="{Binding IsRailExpanded}" />
             </Grid>
@@ -59,8 +66,8 @@
                                 <Grid.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding Command}" />
                                 </Grid.GestureRecognizers>
-                                <Label Grid.Column="0" Text="{Binding Glyph}"
-                                       Style="{StaticResource RailGlyph}" />
+                                <Image Grid.Column="0" Source="{Binding IconImage}"
+                                       Style="{StaticResource RailIcon}" />
                                 <!-- IsExpanded lives on the item; a RelativeSource
                                      binding to the parent view model doesn't
                                      resolve reliably under compiled bindings. -->

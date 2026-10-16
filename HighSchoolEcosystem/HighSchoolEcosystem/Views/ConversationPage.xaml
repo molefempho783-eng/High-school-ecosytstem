@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    One private teacher-parent thread. Same shape as the class chat - a
+    CollectionView in a Grid row (it must virtualise; inside a ScrollView it
+    would collapse on mobile) and a compose bar - but text only, and with no
+    remove option: both sides rely on it as the record of what was said.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.ConversationPage"
+             x:DataType="viewModels:ConversationViewModel"
+             Title="Conversation"
+             BackgroundColor="{AppThemeBinding Light={StaticResource PageBackground}, Dark={StaticResource PageBackgroundDark}}">
+
+    <Grid ColumnDefinitions="44,*">
+        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto,*,Auto">
+
+            <VerticalStackLayout Grid.Row="0" BackgroundColor="{StaticResource BrandDark}" Padding="16,14" Spacing="3">
+                <Label Text="{Binding Title}" FontSize="19" FontAttributes="Bold"
+                       TextColor="{StaticResource White}" MaxLines="2" LineBreakMode="TailTruncation" />
+                <Label Text="{Binding Subtitle}" FontSize="12" TextColor="{StaticResource White}" Opacity="0.85" />
+            </VerticalStackLayout>
+            <BoxView Grid.Row="1" Style="{StaticResource NavRuleBar}" />
+
+            <Border Grid.Row="2" Style="{StaticResource WidgetInset}" Margin="10,8,10,0"
+                    BackgroundColor="{StaticResource WarningFill}"
+                    IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}">
+                <!-- Explicit colour: the fill is light in both themes. -->
+                <Label Text="{Binding StatusMessage}" Style="{StaticResource EmptyStateText}"
+                       TextColor="{StaticResource TextPrimary}" />
+            </Border>
+
+            <RefreshView Grid.Row="3" IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshCommand}">
+                <CollectionView x:Name="MessageList" ItemsSource="{Binding Messages}"
+                                ItemsUpdatingScrollMode="KeepLastItemInView" SelectionMode="None">
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout Padding="24,40" Spacing="6" HorizontalOptions="Center">
+                            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                            <Label Text="No messages yet. Messages are kept by the school, and administrators can read them."
+                                   Style="{StaticResource EmptyStateText}" HorizontalTextAlignment="Center" />
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="viewModels:DirectMessageRow">
+                            <Grid Padding="10,4">
+                                <Border StrokeThickness="0" Padding="11,7" MaximumWidthRequest="320"
+                                        HorizontalOptions="Start" StrokeShape="RoundRectangle 12,12,12,3"
+                                        BackgroundColor="{AppThemeBinding Light={StaticResource CardBackground}, Dark={StaticResource CardBackgroundDark}}">
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsMine}" Value="True">
+                                            <Setter Property="HorizontalOptions" Value="End" />
+                                            <Setter Property="BackgroundColor" Value="{StaticResource BrandDark}" />
+                                            <Setter Property="StrokeShape" Value="RoundRectangle 12,12,3,12" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <VerticalStackLayout Spacing="2">
+                                        <Label Text="{Binding Text}" FontSize="14.5" LineBreakMode="WordWrap"
+                                               TextColor="{AppThemeBinding Light={StaticResource TextPrimary}, Dark={StaticResource TextPrimaryDark}}">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label" Binding="{Binding IsMine}" Value="True">
+                                                    <Setter Property="TextColor" Value="{StaticResource White}" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                        <Label Text="{Binding TimeLabel}" FontSize="10.5" HorizontalOptions="End"
+                                               TextColor="{AppThemeBinding Light={StaticResource TextMuted}, Dark={StaticResource TextMutedDark}}">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label" Binding="{Binding IsMine}" Value="True">
+                                                    <Setter Property="TextColor" Value="{StaticResource White}" />
+                                                    <Setter Property="Opacity" Value="0.75" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                    </VerticalStackLayout>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </RefreshView>
+
+            <!-- Hidden for an admin reading a thread: they aren't a party to it. -->
+            <Border Grid.Row="4" IsVisible="{Binding CanSend}" StrokeThickness="0" Padding="10,8"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource CardBackground}, Dark={StaticResource CardBackgroundDark}}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <Border Grid.Column="0" Style="{StaticResource WidgetInset}" Padding="8,0">
+                        <Editor Text="{Binding Draft}" Placeholder="Write a message"
+                                AutoSize="TextChanges" MaximumHeightRequest="140"
+                                MaxLength="{Binding MaxLength}" />
+                    </Border>
+                    <Button Grid.Column="1" Text="Send" Style="{StaticResource BrandButton}"
+                            VerticalOptions="End" Command="{Binding SendCommand}" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <controls:HomeRail Grid.Column="0" />
+    </Grid>
+</ContentPage>

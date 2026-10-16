@@ -97,12 +97,77 @@ public sealed class Announcement
         }
     }
 
+    /// <summary>
+    /// The team this belongs to, or empty. Same arrangement as ClassId: team
+    /// notices live at /teams/{teamId}/notices, so this is the path talking,
+    /// grafted on after deserialisation so a merged feed can tell the three
+    /// sources apart.
+    ///
+    /// A notice is school-wide, OR a class's, OR a team's — never more than one.
+    /// </summary>
+    public string TeamId { get; init; } = string.Empty;
+
+    /// <summary>Denormalised for the scope chip, like ClassName.</summary>
+    public string TeamName { get; init; } = string.Empty;
+
     public bool IsClassAnnouncement => !string.IsNullOrWhiteSpace(ClassId);
 
-    /// <summary>"Mathematics Grade 10A" or "Whole school" — the feed's scope chip.</summary>
-    public string ScopeLabel => IsClassAnnouncement
-        ? (string.IsNullOrWhiteSpace(ClassName) ? "Class" : ClassName)
-        : "Whole school";
+    public bool IsTeamAnnouncement => !string.IsNullOrWhiteSpace(TeamId);
+
+    /// <summary>"Mathematics Grade 10A", "U16A Rugby" or "Whole school" — the
+    /// feed's scope chip, so a merged feed is never ambiguous about who a
+    /// notice was actually addressed to.</summary>
+    public string ScopeLabel => IsTeamAnnouncement
+        ? (string.IsNullOrWhiteSpace(TeamName) ? "Team" : TeamName)
+        : IsClassAnnouncement
+            ? (string.IsNullOrWhiteSpace(ClassName) ? "Class" : ClassName)
+            : "Whole school";
 
     public bool WasEdited => EditedAt > PostedAt;
+
+    /// <summary>
+    /// Who posted it. Falls back rather than showing a raw UID — a byline of
+    /// "8fH2kQ..." is worse than no byline at all.
+    /// </summary>
+    public string ByLine => string.IsNullOrWhiteSpace(AuthorName)
+        ? "Posted by the school"
+        : $"Posted by {AuthorName}";
+
+    /// <summary>
+    /// The whole notice, for the detail popup.
+    ///
+    /// The feed truncates the body to keep tiles even; this is the only place a
+    /// reader sees all of it, which matters when the important part of a notice
+    /// is the third sentence.
+    /// </summary>
+    public string DetailText
+    {
+        get
+        {
+            // NOT the scope: the sheet shows that as a chip above the title,
+            // and repeating it as the first line of the body reads as a stutter.
+            var lines = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(Body))
+            {
+                lines.Add(string.Empty);
+                lines.Add(Body.Trim());
+            }
+
+            lines.Add(string.Empty);
+            lines.Add(ByLine);
+            lines.Add($"on {PostedAt.ToLocalTime():d MMMM yyyy}");
+
+            if (WasEdited) lines.Add($"Edited {EditedAt.ToLocalTime():d MMMM yyyy}");
+
+            if (HasExpiry)
+            {
+                lines.Add(IsExpired
+                    ? $"Expired {ExpiresAt.ToLocalTime():d MMMM yyyy}"
+                    : $"Showing until {ExpiresAt.ToLocalTime():d MMMM yyyy}");
+            }
+
+            return string.Join(Environment.NewLine, lines);
+        }
+    }
 }

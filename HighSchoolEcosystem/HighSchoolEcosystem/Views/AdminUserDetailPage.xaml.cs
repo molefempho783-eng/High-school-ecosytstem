@@ -12,7 +12,7 @@ public partial class AdminUserDetailPage : ContentPage
         InitializeComponent();
         BindingContext = _viewModel = viewModel;
 
-        _viewModel.ConfirmSelfDemotion = () => DisplayAlert(
+        _viewModel.ConfirmSelfDemotion = () => DisplayAlertAsync(
             "Remove your own admin access?",
             "You'll lose access to these admin tools immediately. If you're the only administrator, "
             + "restoring it means editing the user document in the Firebase console.",

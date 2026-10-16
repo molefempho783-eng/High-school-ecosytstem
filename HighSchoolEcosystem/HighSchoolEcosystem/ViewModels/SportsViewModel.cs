@@ -26,13 +26,22 @@ public sealed record SportsRow(SportsItem Source, bool CanManage)
     public string KindLabel => Source.Kind.ToString();
 
     public bool IsUpcoming => Source.IsUpcoming;
+
+    public string ImageUrl => Source.ImageUrl;
+    public bool HasImage => Source.HasImage;
 }
 
 public partial class SportsViewModel : ObservableObject
 {
     private readonly IContentService _content;
 
-    public SportsViewModel(IContentService content) => _content = content;
+    private readonly IStorageService _storage;
+
+    public SportsViewModel(IContentService content, IStorageService storage)
+    {
+        _content = content;
+        _storage = storage;
+    }
 
     [ObservableProperty] private bool isBusy;
     [ObservableProperty] private bool isRefreshing;
@@ -80,6 +89,66 @@ public partial class SportsViewModel : ObservableObject
 
     /// <summary>A score is only meaningful once the match has been played.</summary>
     public bool ShowsScore => NewKind == "Result";
+
+    // ---- picture ----
+
+    /// <summary>
+    /// The picked file, held until Save. Uploading on pick would leave orphaned
+    /// objects in the bucket every time someone changes their mind, and for a
+    /// NEW post there's no ID to build the path from until the document exists.
+    /// </summary>
+    private byte[]? _pickedImageBytes;
+    private string _pickedImageName = string.Empty;
+    private string _pickedImageContentType = string.Empty;
+
+    /// <summary>
+    /// The picture already on the post being edited. Held as plain fields as
+    /// well as an observable one because the save path has to write them back —
+    /// the update patches the image columns, so not carrying them forward would
+    /// wipe the picture off a post every time someone fixed a typo.
+    /// </summary>
+    private string _existingImageStoragePath = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasExistingImage))]
+    private string existingImageUrl = string.Empty;
+
+    public bool HasExistingImage => !string.IsNullOrWhiteSpace(ExistingImageUrl);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPickedImage))]
+    private string pickedImageLabel = string.Empty;
+
+    public bool HasPickedImage => !string.IsNullOrWhiteSpace(PickedImageLabel);
+
+    /// <summary>
+    /// False when no Storage bucket is configured. Everything else about a post
+    /// still works, so the picture option is hidden rather than the whole form
+    /// being disabled.
+    /// </summary>
+    public bool CanAttachImage => _storage.IsConfigured;
+
+    /// <summary>
+    /// Called by the page once it has picked a file. The bytes are read there
+    /// and handed over, because FilePicker is a platform UI API and the stream
+    /// it returns doesn't survive the trip.
+    /// </summary>
+    public void SetPickedImage(byte[] bytes, string fileName, string contentType)
+    {
+        _pickedImageBytes = bytes;
+        _pickedImageName = fileName;
+        _pickedImageContentType = contentType;
+        PickedImageLabel = $"{fileName} ({bytes.Length / 1024} KB)";
+    }
+
+    [RelayCommand]
+    private void ClearPickedImage()
+    {
+        _pickedImageBytes = null;
+        _pickedImageName = string.Empty;
+        _pickedImageContentType = string.Empty;
+        PickedImageLabel = string.Empty;
+    }
 
     private string _editingId = string.Empty;
 
@@ -141,7 +210,14 @@ public partial class SportsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private Task RefreshAsync() => LoadAsync();
+    private async Task RefreshAsync()
+    {
+        // try/finally, not `=> LoadAsync()`: LoadAsync opens with
+        // `if (IsBusy) return`, so pulling while a load is already running
+        // would return without clearing IsRefreshing and hang the spinner.
+        try { await LoadAsync(); }
+        finally { IsRefreshing = false; }
+    }
 
     [RelayCommand]
     private void StartCreate()
@@ -170,6 +246,12 @@ public partial class SportsViewModel : ObservableObject
         var local = source.EventDate.ToLocalTime();
         NewEventDate = local.Date;
         NewEventTime = local.TimeOfDay;
+
+        // Carried so the form can show the current picture, and so saving
+        // writes it back rather than blanking it.
+        ExistingImageUrl = source.ImageUrl;
+        _existingImageStoragePath = source.ImageStoragePath;
+        ClearPickedImage();
 
         IsFormVisible = true;
     }
@@ -202,15 +284,35 @@ public partial class SportsViewModel : ObservableObject
             Opponent = NewOpponent,
             Venue = NewVenue,
             Score = NewScore,
-            EventDate = eventAt.ToUniversalTime()
+            EventDate = eventAt.ToUniversalTime(),
+
+            // Carried explicitly. UpdateSportsItemAsync patches ImageUrl and
+            // ImageStoragePath, so leaving these empty would wipe the picture
+            // off a post every time someone fixed a typo in its title.
+            ImageUrl = ExistingImageUrl,
+            ImageStoragePath = _existingImageStoragePath
         };
 
         IsBusy = true;
         StatusMessage = string.Empty;
         try
         {
-            if (IsEditing) await _content.UpdateSportsItemAsync(_editingId, item);
-            else await _content.CreateSportsItemAsync(item);
+            string id;
+            if (IsEditing)
+            {
+                await _content.UpdateSportsItemAsync(_editingId, item);
+                id = _editingId;
+            }
+            else
+            {
+                id = await _content.CreateSportsItemAsync(item);
+            }
+
+            // Upload AFTER the document exists: the object path contains the
+            // post's ID. A failed upload therefore leaves a post without a
+            // picture, which is recoverable by editing — the other order would
+            // leave an orphaned object in the bucket that nothing points at.
+            await AttachPickedImageAsync(id);
 
             ResetForm();
         }
@@ -230,6 +332,48 @@ public partial class SportsViewModel : ObservableObject
         finally { IsBusy = false; }
 
         await LoadAsync();
+    }
+
+    /// <summary>
+    /// Uploads the picked picture and attaches it to the post.
+    ///
+    /// Failure is reported but does NOT fail the save: the post itself is
+    /// already written, and telling a journalist their article vanished because
+    /// a photo didn't upload would be both wrong and alarming.
+    /// </summary>
+    private async Task AttachPickedImageAsync(string id)
+    {
+        if (_pickedImageBytes is null || _pickedImageBytes.Length == 0) return;
+        if (!_storage.IsConfigured || string.IsNullOrWhiteSpace(id)) return;
+
+        try
+        {
+            using var stream = new MemoryStream(_pickedImageBytes);
+
+            var result = await _storage.UploadSportsImageAsync(
+                id, _pickedImageName, stream, _pickedImageContentType);
+
+            await _content.SetSportsImageAsync(id, result.DownloadUrl, result.StoragePath);
+
+            // The old picture is only removed once the new one is safely
+            // recorded — the other order risks a post with no image at all.
+            if (!string.IsNullOrWhiteSpace(_existingImageStoragePath)
+                && _existingImageStoragePath != result.StoragePath)
+            {
+                await _storage.DeleteAsync(_existingImageStoragePath);
+            }
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            StatusMessage = "The post was saved, but the picture was refused. "
+                          + "Check that storage.rules has been deployed.";
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Sports.UploadImage", ex);
+            StatusMessage = "The post was saved, but the picture didn't upload. "
+                          + "Edit the post to try again.";
+        }
     }
 
     [RelayCommand]
@@ -273,5 +417,9 @@ public partial class SportsViewModel : ObservableObject
         NewScore = string.Empty;
         NewEventDate = DateTime.Today;
         NewEventTime = new TimeSpan(14, 0, 0);
+
+        ExistingImageUrl = string.Empty;
+        _existingImageStoragePath = string.Empty;
+        ClearPickedImage();
     }
 }

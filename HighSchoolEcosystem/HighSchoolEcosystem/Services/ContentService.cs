@@ -4,13 +4,14 @@ using HighSchoolEcosystem.Services.Interfaces;
 namespace HighSchoolEcosystem.Services;
 
 /// <summary>
-/// Announcements and sport. See <see cref="IContentService"/> for why the
+/// Announcements, sport and the Newspaper. See <see cref="IContentService"/> for why the
 /// permission properties here are a UI convenience rather than a boundary.
 /// </summary>
 public sealed class ContentService : IContentService
 {
     private const string AnnouncementsPath = "announcements";
     private const string SportsPath = "sports";
+    private const string NewspaperPath = "newspaper";
 
     private readonly IFirestoreClient _firestore;
     private readonly IFirebaseAuthService _auth;
@@ -23,11 +24,16 @@ public sealed class ContentService : IContentService
     /// </summary>
     private UserProfile? _cachedProfile;
 
-    public ContentService(IFirestoreClient firestore, IFirebaseAuthService auth, IUserProfileService profiles)
+    private readonly IStorageService _storage;
+
+    public ContentService(
+        IFirestoreClient firestore, IFirebaseAuthService auth,
+        IUserProfileService profiles, IStorageService storage)
     {
         _firestore = firestore;
         _auth = auth;
         _profiles = profiles;
+        _storage = storage;
     }
 
     /// <summary>
@@ -176,6 +182,8 @@ public sealed class ContentService : IContentService
             Opponent = item.Opponent.Trim(),
             Venue = item.Venue.Trim(),
             Score = item.Score.Trim(),
+            ImageUrl = item.ImageUrl.Trim(),
+            ImageStoragePath = item.ImageStoragePath.Trim(),
             AuthorId = session.UserId,
             AuthorName = _cachedProfile?.DisplayName ?? session.Email ?? string.Empty,
             PostedAt = DateTimeOffset.UtcNow
@@ -200,12 +208,163 @@ public sealed class ContentService : IContentService
                 ["EventDate"] = item.EventDate,
                 ["Opponent"] = item.Opponent.Trim(),
                 ["Venue"] = item.Venue.Trim(),
-                ["Score"] = item.Score.Trim()
+                ["Score"] = item.Score.Trim(),
+                ["ImageUrl"] = item.ImageUrl.Trim(),
+                ["ImageStoragePath"] = item.ImageStoragePath.Trim()
             }, cancellationToken);
     }
 
-    public Task DeleteSportsItemAsync(string id, CancellationToken cancellationToken = default)
-        => _firestore.DeleteDocumentAsync($"{SportsPath}/{id}", cancellationToken);
+    public Task SetSportsScoreAsync(
+        string id, string score, CancellationToken cancellationToken = default)
+        => _firestore.PatchFieldsAsync($"{SportsPath}/{id}",
+            new Dictionary<string, object?>
+            {
+                // A match with a score on it is a result, not a fixture. Setting
+                // both together is what moves it out of the coach's "needs a
+                // result" list, so they can't drift apart.
+                ["Kind"] = SportsItemKind.Result,
+                ["Score"] = score.Trim()
+            }, cancellationToken);
+
+    /// <summary>
+    /// Attaches an uploaded picture to a post.
+    ///
+    /// Separate from create because the object path contains the post's ID,
+    /// which doesn't exist until the document has been written. Patches only
+    /// the two image fields, so it can't clobber an edit made in between.
+    /// </summary>
+    public Task SetSportsImageAsync(
+        string id, string imageUrl, string storagePath, CancellationToken cancellationToken = default)
+        => _firestore.PatchFieldsAsync($"{SportsPath}/{id}",
+            new Dictionary<string, object?>
+            {
+                ["ImageUrl"] = imageUrl.Trim(),
+                ["ImageStoragePath"] = storagePath.Trim()
+            }, cancellationToken);
+
+    public async Task DeleteSportsItemAsync(string id, CancellationToken cancellationToken = default)
+    {
+        // The picture goes FIRST, while the document that points at it still
+        // exists. Deleting the document first and then failing would leave an
+        // object in the bucket that nothing references and nothing can find —
+        // billable forever. Same ordering as course material files.
+        try
+        {
+            var existing = await _firestore.GetDocumentAsync<SportsItem>(
+                $"{SportsPath}/{id}", cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(existing?.ImageStoragePath))
+                await _storage.DeleteAsync(existing!.ImageStoragePath, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // A picture we couldn't remove must not block removing the post.
+            CrashLogger.Log($"ContentService.DeleteSportsImage:{id}", ex);
+        }
+
+        await _firestore.DeleteDocumentAsync($"{SportsPath}/{id}", cancellationToken);
+    }
+
+    // ==================== newspaper ====================
+
+    // Mirrors `isSchoolCommunity() || isJournalist()` in firestore.rules.
+    public bool CanReadArticles =>
+        Holds(Role.Student) || Holds(Role.Teacher) || Holds(Role.Parent)
+        || Holds(Role.Admin) || Holds(Role.Coach) || Holds(Role.Journalist);
+
+    public bool CanWriteArticles => Holds(Role.Journalist) || Holds(Role.Admin);
+
+    private bool IsAuthor(Article article)
+        => !string.IsNullOrEmpty(CurrentUserId)
+        && string.Equals(article.AuthorId, CurrentUserId, StringComparison.Ordinal);
+
+    public bool CanEditArticle(Article article)
+        => Holds(Role.Admin) || (Holds(Role.Journalist) && IsAuthor(article));
+
+    // Wider than edit on purpose: a teacher can take an article down but not
+    // rewrite a student's words under the student's name.
+    public bool CanDeleteArticle(Article article)
+        => Holds(Role.Admin) || Holds(Role.Teacher)
+        || (Holds(Role.Journalist) && IsAuthor(article));
+
+    public async Task<IReadOnlyList<Article>> GetArticlesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var documents = await _firestore.ListDocumentsAsync<Article>(NewspaperPath, cancellationToken);
+
+        return documents
+            .Select(d => WithId(d.Value, d.Id))
+            .OrderByDescending(a => a.PostedAt)
+            .ToList();
+    }
+
+    public async Task<string> CreateArticleAsync(
+        string title, string body, CancellationToken cancellationToken = default)
+    {
+        var session = _auth.CurrentSession
+            ?? throw new InvalidOperationException("You need to be signed in to write an article.");
+
+        var id = Guid.NewGuid().ToString("n");
+
+        await _firestore.SetDocumentAsync($"{NewspaperPath}/{id}", new Article
+        {
+            Title = title.Trim(),
+            Body = body.Trim(),
+            // The picture is attached afterwards by SetArticleImageAsync: its
+            // object path needs this ID, which only exists once this is written.
+            ImageUrl = string.Empty,
+            ImageStoragePath = string.Empty,
+            // Must match request.auth.uid or the rule denies the write.
+            AuthorId = session.UserId,
+            AuthorName = _cachedProfile?.DisplayName ?? session.Email ?? string.Empty,
+            PostedAt = DateTimeOffset.UtcNow
+        }, cancellationToken);
+
+        return id;
+    }
+
+    public Task UpdateArticleAsync(
+        string id, string title, string body, CancellationToken cancellationToken = default)
+        // Explicit field list: AuthorId and PostedAt must survive untouched, and
+        // the picture columns are left out so fixing a typo can't wipe the image.
+        => _firestore.PatchFieldsAsync($"{NewspaperPath}/{id}",
+            new Dictionary<string, object?>
+            {
+                ["Title"] = title.Trim(),
+                ["Body"] = body.Trim(),
+                ["EditedAt"] = DateTimeOffset.UtcNow
+            }, cancellationToken);
+
+    public Task SetArticleImageAsync(
+        string id, string imageUrl, string storagePath, CancellationToken cancellationToken = default)
+        => _firestore.PatchFieldsAsync($"{NewspaperPath}/{id}",
+            new Dictionary<string, object?>
+            {
+                ["ImageUrl"] = imageUrl.Trim(),
+                ["ImageStoragePath"] = storagePath.Trim()
+            }, cancellationToken);
+
+    public async Task DeleteArticleAsync(string id, CancellationToken cancellationToken = default)
+    {
+        // Picture FIRST, while the document that points at it still exists —
+        // the other order can leave an object nothing references. Same
+        // ordering as sport and course material.
+        try
+        {
+            var existing = await _firestore.GetDocumentAsync<Article>(
+                $"{NewspaperPath}/{id}", cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(existing?.ImageStoragePath))
+                await _storage.DeleteAsync(existing!.ImageStoragePath, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // A picture we couldn't remove must not block taking the article down.
+            CrashLogger.Log($"ContentService.DeleteArticleImage:{id}", ex);
+        }
+
+        await _firestore.DeleteDocumentAsync($"{NewspaperPath}/{id}", cancellationToken);
+    }
 
     // ==================== helpers ====================
 
@@ -237,8 +396,23 @@ public sealed class ContentService : IContentService
         Opponent = value.Opponent,
         Venue = value.Venue,
         Score = value.Score,
+        ImageUrl = value.ImageUrl,
+        ImageStoragePath = value.ImageStoragePath,
         AuthorId = value.AuthorId,
         AuthorName = value.AuthorName,
         PostedAt = value.PostedAt
+    };
+
+    private static Article WithId(Article value, string id) => new()
+    {
+        Id = id,
+        Title = value.Title,
+        Body = value.Body,
+        ImageUrl = value.ImageUrl,
+        ImageStoragePath = value.ImageStoragePath,
+        AuthorId = value.AuthorId,
+        AuthorName = value.AuthorName,
+        PostedAt = value.PostedAt,
+        EditedAt = value.EditedAt
     };
 }

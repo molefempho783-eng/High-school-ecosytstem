@@ -134,7 +134,7 @@ public interface IClassService
     /// work leaves the "needs marking" queue and the auto-marker's loop guard
     /// can tell a human grade from its own.
     /// </summary>
-    Task SetGradeAsync(string classId, string assignmentId, string studentId, int grade, string feedback, CancellationToken cancellationToken = default);
+    Task SetGradeAsync(string classId, string assignmentId, string studentId, int grade, string feedback, string studentName = "", CancellationToken cancellationToken = default);
 
     // ---- course materials ----
 

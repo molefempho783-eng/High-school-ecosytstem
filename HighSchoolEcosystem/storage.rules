@@ -38,6 +38,26 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    // The signed-in user's profile. ONE document read, and only used on the
+    // sports path below — the class paths deliberately avoid it, see the budget
+    // note at the top of this file. Firestore caches a get() per request, so
+    // the two helpers below still cost one document between them.
+    function userDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Mirrors hasRole() in firestore.rules, and it MUST: a role counts if it is
+    // the primary Role or appears in the additive Roles list. Checking only the
+    // list would lock out every journalist whose primary role is Journalist —
+    // which is most of them.
+    //
+    // Role values are the C# enum names (PascalCase). Keep in sync with
+    // Models/Role.cs and with firestore.rules.
+    function holdsAnyRole(roles) {
+      return roles.hasAny([userDoc().get('Role', '')])
+        || userDoc().get('Roles', []).hasAny(roles);
+    }
+
     // ---- course materials ------------------------------------------------
 
     match /classes/{classId}/materials/{fileName} {
@@ -76,6 +96,75 @@ service firebase.storage {
         && classDoc(classId).TeacherId == request.auth.uid;
     }
 
+    // ---- AI textbook imports ----------------------------------------------
+
+    // The textbook a teacher uploads for AI processing. Once a chapter is
+    // published it's also attached to the class as a File material, so the
+    // class's students can read it — same one-read test as materials above.
+    //
+    // 50 MB rather than 25: that's Gemini's own PDF ceiling, and a whole
+    // textbook is far bigger than a chapter. PDFs only; the AI reads nothing
+    // else. The Cloud Function reads it with its own credentials, not via
+    // these rules.
+    match /classes/{classId}/textbooks/{fileName} {
+
+      allow read: if isSignedIn() && (
+        classDoc(classId).TeacherId == request.auth.uid
+        || request.auth.uid in classDoc(classId).StudentIds
+      );
+
+      allow create, update: if isSignedIn()
+        && classDoc(classId).TeacherId == request.auth.uid
+        && request.resource != null
+        && request.resource.size < 50 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches('application/pdf');
+
+      allow delete: if isSignedIn()
+        && classDoc(classId).TeacherId == request.auth.uid;
+    }
+
+    // ---- class chat attachments ------------------------------------------
+
+    // Pictures and files sent in a class group chat.
+    // classes/{classId}/chat/{uid}/{fileName} — the sender's UID is in the path,
+    // which is what lets "only your own" be checked without reading the message.
+    //
+    // One Firestore read (the class) for members; an admin delete adds the
+    // user's profile, two in total — still inside the budget.
+    match /classes/{classId}/chat/{uid}/{fileName} {
+
+      // The class's students and teacher, the same audience as the messages.
+      allow read: if isSignedIn() && (
+        classDoc(classId).TeacherId == request.auth.uid
+        || request.auth.uid in classDoc(classId).StudentIds
+      );
+
+      // Only into your OWN folder, and only if you're in the class. Pictures
+      // and everyday school documents (PDF, Office, plain text), 15 MB — a
+      // phone photo or a worksheet, not a video. Executables, archives and
+      // anything else are refused, because every member downloads them.
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && (classDoc(classId).TeacherId == request.auth.uid
+            || request.auth.uid in classDoc(classId).StudentIds)
+        && request.resource != null
+        && request.resource.size < 15 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches(
+             'image/.*|application/pdf|text/plain|application/msword|application/vnd[.]ms-.*|application/vnd[.]openxmlformats-officedocument[.].*');
+
+      // No replacing an attachment after people have seen it.
+      allow update: if false;
+
+      // The sender, the class teacher (moderation), or an admin.
+      allow delete: if isSignedIn() && (
+        request.auth.uid == uid
+        || classDoc(classId).TeacherId == request.auth.uid
+        || holdsAnyRole(['Admin'])
+      );
+    }
+
     // ---- student submissions ---------------------------------------------
 
     // A student's uploaded answer file. The path carries the student's UID, so
@@ -108,6 +197,73 @@ service firebase.storage {
         request.auth.uid == studentId
         || classDoc(classId).TeacherId == request.auth.uid
       );
+    }
+
+    // ---- sport and school journalism -------------------------------------
+
+    // Pictures on fixtures, results and articles.
+    //
+    // Readable by ANYONE, signed in or not, because /sports itself is public in
+    // firestore.rules — a match report visible to prospective parents on the
+    // school's front page would be absurd with a broken image in it.
+    //
+    // Writing costs ONE Firestore read: the user's own profile, for their role.
+    // The class document is no use here, so this is the one place a role check
+    // is the cheapest correct test rather than a redundant extra one. Still
+    // within the two-document budget.
+    //
+    // Note this does NOT check authorship of the post the picture belongs to.
+    // Doing so would need a second read (the sports document), and the honest
+    // trade is that a journalist could overwrite another journalist's image but
+    // not their words — the document itself is still author-locked in
+    // firestore.rules. Worth revisiting only if that becomes a real problem.
+    match /sports/{itemId}/{fileName} {
+
+      allow read: if true;
+
+      allow create, update: if isSignedIn()
+        && holdsAnyRole(['Coach', 'Admin', 'Journalist'])
+        && request.resource != null
+        // 8 MB. Smaller than course material on purpose: these are photos
+        // shown inline in a feed, and a 25 MB image would make the sports
+        // section unusable on a school network.
+        && request.resource.size < 8 * 1024 * 1024
+        // Images only. A PDF named .jpg would be served to every visitor.
+        && request.resource.contentType != null
+        && request.resource.contentType.matches('image/.*');
+
+      allow delete: if isSignedIn()
+        && holdsAnyRole(['Coach', 'Admin', 'Journalist']);
+    }
+
+    // ---- newspaper ---------------------------------------------------------
+
+    // The picture on a Newspaper article: newspaper/{articleId}/{fileName}.
+    //
+    // Same shape and budget as sport above — ONE read, the user's own profile.
+    // Same honest trade too: authorship of the article isn't checked here
+    // (that would be a second read), so a journalist could replace another
+    // journalist's picture but never their words, which firestore.rules locks.
+    //
+    // Read needs a sign-in, unlike sport, because /newspaper isn't public. In
+    // practice the app shows pictures through tokenised download URLs, which
+    // bypass this rule, so the article document is what really gates them.
+    match /newspaper/{articleId}/{fileName} {
+
+      allow read: if isSignedIn();
+
+      allow create, update: if isSignedIn()
+        && holdsAnyRole(['Journalist', 'Admin'])
+        && request.resource != null
+        // 8 MB, matching sport pictures.
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches('image/.*');
+
+      // Teacher included because a teacher can take an article down, and
+      // deleting an article removes its picture first.
+      allow delete: if isSignedIn()
+        && holdsAnyRole(['Journalist', 'Admin', 'Teacher']);
     }
 
     // Everything else stays closed.

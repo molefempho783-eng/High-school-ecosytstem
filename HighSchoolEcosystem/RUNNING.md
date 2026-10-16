@@ -428,6 +428,172 @@ Or run it against the emulators without deploying:
 npm run serve --prefix functions
 ```
 
+## AI textbook import
+
+A teacher uploads a textbook PDF from a class's **Course material** page
+("Create from a textbook (AI)"). Gemini, running on **Vertex AI**, reads it and
+drafts one unit per chapter: study notes plus an 8-question practice quiz. The
+teacher reviews and edits the drafts, then publishes each chapter. **Students
+see nothing until a chapter is published.** Publishing also attaches the
+original PDF to the class, once.
+
+Code: `functions/textbooks.js` (the AI), `Services/TextbookService.cs`
+(upload, drafts, publish), `TeacherTextbooksPage` and `TeacherTextbookReviewPage`.
+
+### One-time setup
+
+It runs in Cloud Functions, so it needs the **Blaze plan** like auto-marking.
+There is **no API key**: the function signs in to Vertex AI as the project's own
+service account, and usage is billed to the same Firebase project.
+
+1. Enable the Vertex AI API for the project:
+   Google Cloud console → APIs & Services → enable **Vertex AI API**
+   (`aiplatform.googleapis.com`), or:
+
+   ```powershell
+   gcloud services enable aiplatform.googleapis.com --project high-school-ecosystem-dev
+   ```
+
+2. Install the Gemini library and deploy the functions **and** both rules files
+   (the textbook rules live in both):
+
+   ```powershell
+   npm install --prefix functions
+   firebase deploy --only functions --project high-school-ecosystem-dev
+   firebase deploy --only firestore:rules --project high-school-ecosystem-dev
+   firebase deploy --only storage --project high-school-ecosystem-dev
+   ```
+
+   The first deploy asks for `GEMINI_MODEL` and `GEMINI_LOCATION`. Press Enter
+   to accept the defaults (`gemini-3.8-flash`, `global`). They're saved to
+   `functions/.env.<project>`, so changing model later — say to a Pro model for
+   a diagram-heavy book — is an edit there and a redeploy, not a code change.
+
+### Limits and cost
+
+- PDFs up to **50 MB** (enforced in `storage.rules` and again in the function).
+  Gemini reads up to 1,000 pages.
+- Up to 30 chapters per book. Front and back matter is skipped.
+- Each chapter is its own function run, so long books don't hit the 9-minute
+  limit. Nothing retries automatically — a failed chapter shows **Retry**.
+- Rough cost on Gemini 3.8 Flash: well under US$1 per textbook. Each chapter
+  run re-reads the whole PDF (Gemini counts 258 tokens per page), so a 300-page,
+  12-chapter book is about 1M input tokens. Check current prices on
+  Google's Vertex AI pricing page before rolling out.
+
+### If it fails
+
+The teacher sees a plain-language reason on the job; the detail is in
+`firebase functions:log`.
+
+- **"The AI service isn't switched on"** — the Vertex AI API isn't enabled, or
+  the functions service account lacks the **Vertex AI User** role.
+- **"The configured Gemini model isn't available"** — `GEMINI_MODEL` names a
+  model Vertex AI doesn't offer in `GEMINI_LOCATION`.
+- **Upload refused** — `storage.rules` wasn't deployed, the file is over 50 MB,
+  or it isn't a PDF.
+- **Job stays "Queued"** — the functions weren't deployed after
+  `npm install --prefix functions`.
+
+## Class group chat
+
+Every class has a group chat for its students and its teacher (class page →
+**Class chat**). There is no private messaging. The teacher can remove any
+message; students can remove their own. Messages can carry a picture or a file
+(PDF, Word, Excel, PowerPoint, text; up to 15 MB). It needs both rules files
+deployed:
+
+```powershell
+firebase deploy --only firestore:rules --project high-school-ecosystem-dev
+firebase deploy --only storage --project high-school-ecosystem-dev
+```
+
+New messages appear within about 5 seconds while the chat is open. With the
+chat closed, members get a push notification (see below), and each class card
+shows a circle with the number of unread messages. "Unread" is tracked per
+device, so reading on a phone doesn't clear the circle on a laptop.
+
+## Teacher-parent messages
+
+Teachers and parents can message each other privately about a child, from the
+**Messages** section on their dashboards. A parent can message the teachers of
+their linked children's classes; a teacher can message the parents of the
+students in their classes. The database rules check that relationship, so
+nobody can open a thread with a family or teacher they aren't connected to.
+
+**Link parents to children first**, in Manage users. Either open a parent and
+tick their children under *Linked students*, or open a student and tick their
+parents under *Parents*. Once a child is enrolled in a class, their parents can
+message that class's teacher.
+
+Messages are kept as a record: neither side can edit or delete them, and school
+administrators can read every conversation (both sides are told this). Deploy
+the rules and functions for it to work:
+
+```powershell
+firebase deploy --only firestore:rules --project high-school-ecosystem-dev
+firebase deploy --only functions --project high-school-ecosystem-dev
+```
+
+## Push notifications
+
+Android and iOS get push notifications for: school announcements, class
+notices, new homework/tests/exams, work being marked, new Newspaper articles,
+sports posts, team notices, class chat messages, and a 16:00 reminder of
+anything due or being assessed tomorrow. Nobody is notified about something
+they did themselves. Windows and Mac don't get push.
+
+The sending is all in `functions/notifications.js`. The app only registers each
+device under `/users/{uid}/devices` after sign-in and removes it on sign-out.
+
+### One-time setup
+
+**1. Android** — in the Firebase console, Project settings → *Your apps* → add an
+Android app with package name `com.dayly.highschoolecosystem`. Download
+`google-services.json` and save it as:
+
+    HighSchoolEcosystem\Platforms\Android\google-services.json
+
+**2. iOS** — needs a paid Apple Developer account and a Mac to build:
+
+- In Apple Developer → Identifiers, enable **Push Notifications** on the App ID
+  `com.dayly.highschoolecosystem`, and regenerate its provisioning profile.
+- In Apple Developer → Keys, create an **APNs key** (.p8). In the Firebase
+  console → Project settings → Cloud Messaging → *Apple app configuration*,
+  upload it with its Key ID and your Team ID.
+- In the Firebase console, add an iOS app with bundle ID
+  `com.dayly.highschoolecosystem`, download `GoogleService-Info.plist` and save it as:
+
+      HighSchoolEcosystem\Platforms\iOS\GoogleService-Info.plist
+
+- `Platforms/iOS/Entitlements.plist` has `aps-environment` set to
+  `development`. App Store builds need `production`.
+- Push does not work in the iOS Simulator for every setup; test on a real iPhone.
+
+Both files are optional at build time: without them the app still builds and
+runs, push just stays off (the csproj only defines `PUSH_CONFIGURED` when the
+file is there). They hold no secrets, but they are project-specific — each
+school's build needs its own.
+
+**3. Server** — deploy the functions (the daily reminder also needs the Cloud
+Scheduler API, which the first deploy offers to enable) and the rules:
+
+```powershell
+firebase deploy --only functions --project high-school-ecosystem-dev
+firebase deploy --only firestore:rules --project high-school-ecosystem-dev
+```
+
+### Testing
+
+Sign in on a phone and allow notifications when asked. Check
+`users/{your uid}/devices` in the Firestore console has a document with a
+`Token`. Then post an announcement from another account. Notifications sent to
+yourself are skipped on purpose — always test with two accounts.
+
+If nothing arrives: `firebase functions:log` shows each send and how many
+tokens failed. A "registration-token-not-registered" error means the device
+entry was stale and has been deleted; sign out and in again on the phone.
+
 ## Visitors and guests
 
 `Visitor` is a real role for people connected to the school but outside it —
@@ -461,8 +627,12 @@ impossible from the client:
   privileged role in it — primary or additional — requires a verified email.
   Without that check a user could self-assign `Roles: ["Admin"]` on top of a
   Student primary role and walk through every admin check.
-- Journalists can only edit their **own** articles; teachers and admins can edit
-  any, which is what makes editorial oversight of a student newspaper work.
+- **Newspaper articles go live as soon as a journalist publishes** — there is
+  no approval step. Journalists can only edit or delete their **own** articles;
+  admins can edit or delete any; **teachers can delete (take down) any article
+  but cannot edit it**, so nobody rewrites a student's words under their byline.
+  The Newspaper is readable by the school community and journalists, not by
+  visitors or guests.
 - **Staff (Teacher, Coach, Admin) can read the user directory** — a teacher
   needs student names to build a roster. Writing user documents stays
   admin-only, so this grants visibility, not control.

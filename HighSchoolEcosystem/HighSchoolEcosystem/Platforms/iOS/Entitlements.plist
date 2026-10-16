@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <!-- Push notifications. "development" for debug builds signed with a
+       development profile; Xcode/App Store signing switches it to production.
+       The App ID must have Push Notifications enabled. -->
+  <key>aps-environment</key>
+  <string>development</string>
   <key>keychain-access-groups</key>
   <array>
     <string>$(AppIdentifierPrefix)com.dayly.highschoolecosystem</string>

@@ -103,11 +103,83 @@
         <Setter Property="StrokeShape" Value="RoundRectangle 9" />
     </Style>
 
+    <!-- Unread chat messages, over a class card's colour banner. Grows to fit
+         "99+" (unlike CountBadge, which is a fixed 18 circle), and carries a
+         white ring so it reads against any banner colour. -->
+    <Style x:Key="UnreadBadge" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{StaticResource BadgeFill}" />
+        <Setter Property="Stroke" Value="{StaticResource White}" />
+        <Setter Property="StrokeThickness" Value="1.5" />
+        <Setter Property="HeightRequest" Value="22" />
+        <Setter Property="MinimumWidthRequest" Value="22" />
+        <Setter Property="Padding" Value="6,0" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 11" />
+        <Setter Property="HorizontalOptions" Value="End" />
+        <Setter Property="VerticalOptions" Value="Start" />
+        <Setter Property="Margin" Value="0,5,5,0" />
+    </Style>
+
+    <Style x:Key="UnreadBadgeText" TargetType="Label">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="{StaticResource BadgeText}" />
+        <Setter Property="HorizontalOptions" Value="Center" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
     <Style x:Key="CountBadgeText" TargetType="Label">
         <Setter Property="FontSize" Value="11" />
         <Setter Property="TextColor" Value="{StaticResource BadgeText}" />
         <Setter Property="HorizontalOptions" Value="Center" />
         <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
+    <!-- ==================== Detail sheet ==================== -->
+
+    <!--
+        The in-app replacement for DisplayAlert. A native alert cannot be styled
+        at all, which is why announcements used to open a grey OS box in the
+        middle of an otherwise branded app.
+
+        Bottom-anchored rather than centred: it's the phone convention, the
+        thumb is already down there, and a long notice can grow upwards without
+        the text jumping around as it does in a centred box.
+    -->
+    <Style x:Key="SheetScrim" TargetType="BoxView">
+        <Setter Property="Color" Value="{StaticResource Black}" />
+        <Setter Property="Opacity" Value="0.45" />
+    </Style>
+
+    <Style x:Key="SheetCard" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource CardBackground}, Dark={StaticResource CardBackgroundDark}}" />
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <!-- Rounded at the top only: it reads as having slid up from the
+             bottom edge rather than floating. -->
+        <Setter Property="StrokeShape" Value="RoundRectangle 14,14,0,0" />
+        <Setter Property="VerticalOptions" Value="End" />
+    </Style>
+
+    <Style x:Key="SheetTitle" TargetType="Label">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextPrimary}, Dark={StaticResource TextPrimaryDark}}" />
+    </Style>
+
+    <Style x:Key="SheetBody" TargetType="Label">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="LineHeight" Value="1.35" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
+    </Style>
+
+    <!-- The little grab handle at the top of the card. Purely a signal that
+         the thing is dismissible. -->
+    <Style x:Key="SheetGrip" TargetType="BoxView">
+        <Setter Property="HeightRequest" Value="4" />
+        <Setter Property="WidthRequest" Value="36" />
+        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="HorizontalOptions" Value="Center" />
+        <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
     </Style>
 
     <!-- ==================== List rows ==================== -->
@@ -142,10 +214,46 @@
 
     <!-- The little document glyph at the left of each row. -->
     <Style x:Key="RowIcon" TargetType="Label">
+        <!-- Icon font: Text must be an Icons.* codepoint, not an emoji. -->
+        <Setter Property="FontFamily" Value="MaterialSymbols" />
         <Setter Property="FontSize" Value="15" />
         <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
         <Setter Property="VerticalOptions" Value="Start" />
         <Setter Property="Margin" Value="0,1,0,0" />
+    </Style>
+
+    <!--
+        One row in a list. ARC's shape exactly: a glyph, then a link-coloured
+        title over a single grey meta line.
+
+        Tile grids are still the default for browsing collections, but a
+        deliberately SHORT, SCANNABLE, PRIORITISED list reads better as rows —
+        the eye goes straight down the titles instead of hopping across a grid,
+        and one line of meta carries more than a 132-wide tile can. Work to do,
+        grades and the timetable are all of that kind: you read them top to
+        bottom and act on the first thing that matters.
+    -->
+    <Style x:Key="ListRow" TargetType="Grid">
+        <Setter Property="Padding" Value="0,9" />
+        <Setter Property="ColumnSpacing" Value="10" />
+    </Style>
+
+    <!-- The rule between rows. Lighter than SectionRule, which divides
+         sections rather than the items inside one. -->
+    <Style x:Key="RowRule" TargetType="BoxView">
+        <Setter Property="HeightRequest" Value="1" />
+        <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource CardBorder}, Dark={StaticResource CardBorderDark}}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="Opacity" Value="0.6" />
+        <Setter Property="Margin" Value="0" />
+    </Style>
+
+    <!-- The big figure at the right of a grade row: "17 / 20". -->
+    <Style x:Key="RowValue" TargetType="Label">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="VerticalOptions" Value="Center" />
+        <Setter Property="HorizontalTextAlignment" Value="End" />
     </Style>
 
     <Style x:Key="RowSpacing" TargetType="VerticalStackLayout">
@@ -225,8 +333,9 @@
 
     <Style x:Key="NavBar" TargetType="Grid">
         <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource NavBackground}, Dark={StaticResource NavBackgroundDark}}" />
-        <!-- 52 on the left clears the floating rail, same as the content below. -->
-        <Setter Property="Padding" Value="52,10,14,10" />
+        <!-- 60 clears the 44px rail AND its shadow. The content stack below
+             uses 50 instead, because that number is part of the tile sum. -->
+        <Setter Property="Padding" Value="60,10,14,10" />
         <Setter Property="ColumnSpacing" Value="12" />
     </Style>
 
@@ -423,6 +532,7 @@
     </Style>
 
     <Style x:Key="TileGlyph" TargetType="Label">
+        <Setter Property="FontFamily" Value="MaterialSymbols" />
         <Setter Property="FontSize" Value="15" />
         <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}" />
     </Style>
@@ -449,7 +559,19 @@
         <Setter Property="ColumnSpacing" Value="8" />
     </Style>
 
+    <!-- A rail icon as an IMAGE (rail_*.png). 22px in a 44px-wide cell, so it
+         sits exactly where the glyph used to and the labels still line up. -->
+    <Style x:Key="RailIcon" TargetType="Image">
+        <Setter Property="WidthRequest" Value="22" />
+        <Setter Property="HeightRequest" Value="22" />
+        <Setter Property="Margin" Value="11,0" />
+        <Setter Property="HorizontalOptions" Value="Center" />
+        <Setter Property="VerticalOptions" Value="Center" />
+        <Setter Property="Aspect" Value="AspectFit" />
+    </Style>
+
     <Style x:Key="RailGlyph" TargetType="Label">
+        <Setter Property="FontFamily" Value="MaterialSymbols" />
         <Setter Property="FontSize" Value="18" />
         <Setter Property="TextColor" Value="{StaticResource White}" />
         <Setter Property="HorizontalOptions" Value="Center" />
@@ -474,9 +596,25 @@
         per-course imagery, and a solid banner in the class's own colour does
         the same identifying job.
     -->
+    <!--
+        The tall brand banner at the top of a class or team page.
+
+        TWO variants, because the rail is two different things depending on the
+        page. Where the rail sits in its own Grid COLUMN it pushes content over
+        and 20 is right. Where the rail FLOATS it overlays the first 44 pixels,
+        and a 20 padding puts the title underneath it — which is exactly the bug
+        this pair exists to prevent.
+    -->
     <Style x:Key="CourseBanner" TargetType="Grid">
         <Setter Property="HeightRequest" Value="120" />
         <Setter Property="Padding" Value="20,0" />
+    </Style>
+
+    <!-- For pages whose rail FLOATS. 60, not 52: the rail is 44 wide and its
+         shadow reaches about 50, so 52 put the title's first characters inside
+         the shadow. Banners carry no tiles, so this is outside the tile sum. -->
+    <Style x:Key="CourseBannerInset" TargetType="Grid" BasedOn="{StaticResource CourseBanner}">
+        <Setter Property="Padding" Value="60,0,20,0" />
     </Style>
 
     <Style x:Key="CourseBannerTitle" TargetType="Label">

@@ -15,6 +15,10 @@
          taking a column, so expanding it covers rather than squeezes. -->
     <Grid>
 
+        <!-- Pull to refresh. Wraps only the ScrollView: the rail must stay
+             outside so dragging the page doesn't drag the rail with it, and so
+             it still draws last, on top. -->
+        <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}">
         <ScrollView x:Name="ContentScroll" Style="{StaticResource PageCanvas}">
         <VerticalStackLayout Spacing="0">
 
@@ -29,7 +33,7 @@
             <BoxView Style="{StaticResource NavRuleBar}" />
 
             <!-- 44 on the left clears the floating rail. -->
-                <VerticalStackLayout Padding="52,12,10,12" Spacing="12">
+                <VerticalStackLayout Padding="50,12,8,12" Spacing="12">
 
                 <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
                 <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
@@ -37,7 +41,7 @@
 
                 <!-- ============ Teaching tools ============ -->
 
-                <Border Style="{StaticResource Widget}">
+                <Border x:Name="ToolsSection" Style="{StaticResource Widget}">
                     <VerticalStackLayout Spacing="0">
                         <HorizontalStackLayout Margin="0,0,0,12">
                             <Label Text="Teaching" Style="{StaticResource WidgetTitle}" />
@@ -73,7 +77,7 @@
 
                 <!-- ============ Other roles ============ -->
 
-                <Border Style="{StaticResource Widget}">
+                <Border x:Name="RolesSection" Style="{StaticResource Widget}">
                     <Border.Triggers>
                         <MultiTrigger TargetType="Border">
                             <MultiTrigger.Conditions>
@@ -140,28 +144,28 @@
                         </Grid>
                         <BoxView Style="{StaticResource SectionRule}" />
 
-                        <FlexLayout BindableLayout.ItemsSource="{Binding VisiblePeriods}"
-                                    Style="{StaticResource TileGrid}"
-                                    IsVisible="{Binding HasVisiblePeriods}">
-                            <BindableLayout.ItemTemplate>
-                                <DataTemplate x:DataType="viewModels:StudentPeriodRow">
-                                    <Border Style="{StaticResource Tile}">
-                                        <VerticalStackLayout Spacing="0">
-                                            <BoxView Style="{StaticResource TileAccent}"
-                                                     Color="{Binding SpineColor}" />
-                                            <VerticalStackLayout Style="{StaticResource TileBody}">
-                                                <Label Text="{Binding DayLabel}" Style="{StaticResource TileKicker}" />
-                                                <Label Text="{Binding Heading}" Style="{StaticResource TileTitle}"
-                                                       HeightRequest="36" />
-                                                <Label Text="{Binding TimeAndPlace}" Style="{StaticResource TileMeta}" />
-                                                <Label Text="{Binding ClassName}" Style="{StaticResource TileSubtle}"
-                                                       MaxLines="1" />
-                                            </VerticalStackLayout>
-                                        </VerticalStackLayout>
-                                    </Border>
-                                </DataTemplate>
-                            </BindableLayout.ItemTemplate>
-                        </FlexLayout>
+                                    <!-- Same shape as the student timetable, so a teacher who is
+                                         also a parent doesn't meet two different designs. -->
+                                    <CollectionView ItemsSource="{Binding VisiblePeriods}"
+                                                    HeightRequest="{Binding VisiblePeriods, Converter={StaticResource ListHeight}, ConverterParameter='74,5'}" SelectionMode="None"
+                                                    IsVisible="{Binding HasVisiblePeriods}">
+                                        <CollectionView.ItemTemplate>
+                                            <DataTemplate x:DataType="viewModels:StudentPeriodRow">
+                                                <VerticalStackLayout Spacing="0">
+                                                    <Grid Style="{StaticResource ListRow}" ColumnDefinitions="4,*">
+                                                        <BoxView Grid.Column="0" WidthRequest="4"
+                                                                 Color="{Binding SpineColor}" VerticalOptions="Fill" />
+                                                        <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                                            <Label Text="{Binding Heading}" Style="{StaticResource RowTitle}" />
+                                                            <Label Text="{Binding TimeAndPlace}" Style="{StaticResource RowMeta}" />
+                                                            <Label Text="{Binding DayLabel}" Style="{StaticResource RowSubtle}" />
+                                                        </VerticalStackLayout>
+                                                    </Grid>
+                                                    <BoxView Style="{StaticResource RowRule}" />
+                                                </VerticalStackLayout>
+                                            </DataTemplate>
+                                        </CollectionView.ItemTemplate>
+                                    </CollectionView>
 
                         <Border Style="{StaticResource WidgetInset}"
                                 IsVisible="{Binding PeriodsEmptyMessage, Converter={StaticResource StringNotEmpty}}">
@@ -195,41 +199,38 @@
                             <Label Grid.Column="2" Style="{StaticResource WidgetChevron}" />
                         </Grid>
 
-                        <FlexLayout BindableLayout.ItemsSource="{Binding MarkingQueue}"
-                                    Style="{StaticResource TileGrid}">
-                            <BindableLayout.ItemTemplate>
-                                <DataTemplate x:DataType="models:MarkingQueueItem">
-                                    <Border Style="{StaticResource Tile}"
-                                            SemanticProperties.Description="{Binding Description}">
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Tapped="OnMarkingRowTapped" />
-                                        </Border.GestureRecognizers>
-                                        <VerticalStackLayout Spacing="0">
-                                            <BoxView Style="{StaticResource TileAccent}"
-                                                     Color="{StaticResource BadgeFill}" />
-                                            <VerticalStackLayout Style="{StaticResource TileBody}">
-                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                                    <Label Grid.Column="0" Text="{Binding ClassName}"
-                                                           Style="{StaticResource TileKicker}"
-                                                           MaxLines="1" />
-                                                    <Border Grid.Column="1"
-                                                            Style="{StaticResource CountBadge}">
-                                                        <Label Text="{Binding CountLabel}"
-                                                               Style="{StaticResource CountBadgeText}" />
-                                                    </Border>
-                                                </Grid>
-                                                <Label Text="{Binding AssignmentTitle}"
-                                                       Style="{StaticResource TileTitle}"
-                                                       HeightRequest="36" />
-                                                <Label Text="{Binding Waiting}" Style="{StaticResource TileMeta}" />
-                                                <Label Text="{Binding DueLabel}" Style="{StaticResource TileSubtle}"
-                                                       MaxLines="1" />
-                                            </VerticalStackLayout>
-                                        </VerticalStackLayout>
-                                    </Border>
-                                </DataTemplate>
-                            </BindableLayout.ItemTemplate>
-                        </FlexLayout>
+                                    <!-- The teacher's Work to do. A list, not tiles: it's read top
+                                         to bottom and acted on, and bounded so a term's backlog
+                                         scrolls in place instead of pushing the page down. -->
+                                    <CollectionView ItemsSource="{Binding MarkingQueue}"
+                                                    HeightRequest="{Binding MarkingQueue, Converter={StaticResource ListHeight}, ConverterParameter='90,4'}" SelectionMode="None">
+                                        <CollectionView.ItemTemplate>
+                                            <DataTemplate x:DataType="models:MarkingQueueItem">
+                                                <VerticalStackLayout Spacing="0">
+                                                    <Grid Style="{StaticResource ListRow}"
+                                                          ColumnDefinitions="4,*,Auto"
+                                                          SemanticProperties.Description="{Binding Description}">
+                                                        <Grid.GestureRecognizers>
+                                                            <TapGestureRecognizer Tapped="OnMarkingRowTapped" />
+                                                        </Grid.GestureRecognizers>
+                                                        <BoxView Grid.Column="0" WidthRequest="4"
+                                                                 Color="{StaticResource BadgeFill}"
+                                                                 VerticalOptions="Fill" />
+                                                        <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                                            <Label Text="{Binding AssignmentTitle}" Style="{StaticResource RowTitle}" />
+                                                            <Label Text="{Binding Waiting}" Style="{StaticResource RowMetaOverdue}" />
+                                                            <Label Text="{Binding ClassName}" Style="{StaticResource RowSubtle}" MaxLines="1" />
+                                                            <Label Text="{Binding DueLabel}" Style="{StaticResource RowSubtle}" />
+                                                        </VerticalStackLayout>
+                                                        <Border Grid.Column="2" Style="{StaticResource CountBadge}">
+                                                            <Label Text="{Binding CountLabel}" Style="{StaticResource CountBadgeText}" />
+                                                        </Border>
+                                                    </Grid>
+                                                    <BoxView Style="{StaticResource RowRule}" />
+                                                </VerticalStackLayout>
+                                            </DataTemplate>
+                                        </CollectionView.ItemTemplate>
+                                    </CollectionView>
 
                         <Border Style="{StaticResource WidgetInset}"
                                 IsVisible="{Binding MarkingEmptyMessage, Converter={StaticResource StringNotEmpty}}">
@@ -260,8 +261,15 @@
                                             <TapGestureRecognizer Tapped="OnClassRowTapped" />
                                         </Border.GestureRecognizers>
                                         <VerticalStackLayout Spacing="0">
-                                            <BoxView Style="{StaticResource ClassCardBanner}"
-                                                     Color="{Binding BannerColor}" />
+                                            <!-- Banner, with the unread-chat circle over its corner. -->
+                                            <Grid>
+                                                <BoxView Style="{StaticResource ClassCardBanner}"
+                                                         Color="{Binding BannerColor}" />
+                                                <Border Style="{StaticResource UnreadBadge}" IsVisible="{Binding Unread.HasUnread}"
+                                                        SemanticProperties.Description="{Binding Unread.Description}">
+                                                    <Label Text="{Binding Unread.Label}" Style="{StaticResource UnreadBadgeText}" />
+                                                </Border>
+                                            </Grid>
                                             <VerticalStackLayout Style="{StaticResource TileBody}">
                                                 <Label Text="{Binding Heading}" Style="{StaticResource TileTitle}"
                                                        HeightRequest="36" />
@@ -283,9 +291,180 @@
                     </VerticalStackLayout>
                 </Border>
 
+
+                <!-- ============ Messages ============ -->
+                <!-- Teacher-parent threads. Shared control: Controls/MessagesWidget.xaml. -->
+                <controls:MessagesWidget x:Name="MessagesSection" />
+
+                <!-- ============ Announcements ============ -->
+
+                <!--
+                    Read-only on this dashboard. Composing a school-wide notice
+                    lives with the admin tools; this is here so nobody has to
+                    switch roles to find out what the school has been told.
+                -->
+                <Border x:Name="AnnouncementsSection" Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8" Margin="0,0,0,12">
+                            <Label Grid.Column="0" Text="Announcements"
+                                   Style="{StaticResource WidgetTitle}" />
+                            <Border Grid.Column="1" Style="{StaticResource CountBadge}"
+                                    IsVisible="{Binding HasAnnouncements}">
+                                <Label Text="{Binding AnnouncementsCount}"
+                                       Style="{StaticResource CountBadgeText}" />
+                            </Border>
+                            <Label Grid.Column="2" Style="{StaticResource WidgetChevron}" />
+                        </Grid>
+
+                        <!-- School-wide notices are admin-only, and are written
+                             on the school dashboard where the composer lives.
+                             Hidden for everyone else. -->
+                        <Button Text="New announcement" Style="{StaticResource BrandButtonOutline}"
+                                HorizontalOptions="Start" FontSize="12"
+                                Padding="12,6" MinimumHeightRequest="36" Margin="0,0,0,10"
+                                IsVisible="{Binding CanManageAnnouncements}"
+                                Clicked="OnPostAnnouncementClicked" />
+
+                        <!-- What a teacher can actually write. School-wide
+                             notices are admin-only; a class notice reaches only
+                             the class it's posted to, and is composed inside
+                             that class alongside its other settings. -->
+                        <Button Text="Post a class notice" Style="{StaticResource BrandButtonOutline}"
+                                HorizontalOptions="Start" FontSize="12"
+                                Padding="12,6" MinimumHeightRequest="36" Margin="0,0,0,10"
+                                IsVisible="{Binding HasClasses}"
+                                Clicked="OnClassesClicked" />
+
+                        <FlexLayout BindableLayout.ItemsSource="{Binding Announcements}"
+                                    Style="{StaticResource TileGrid}"
+                                    IsVisible="{Binding HasAnnouncements}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:AnnouncementRow">
+                                    <!-- Dimmed once lapsed. A teacher sees their own
+                                         expired class notices here so they can tell
+                                         WHY one vanished for the class and extend it;
+                                         showing it at full strength would read as
+                                         still live. -->
+                                    <Border Style="{StaticResource TileWide}"
+                                            Opacity="{Binding RowOpacity}">
+                                        <!-- Tap: a class notice opens its class, a
+                                             school notice opens the full text. -->
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnAnnouncementTapped" />
+                                        </Border.GestureRecognizers>
+                                        <VerticalStackLayout Spacing="0">
+                                            <BoxView Style="{StaticResource TileAccent}"
+                                                     Color="{StaticResource BrandBright}" />
+                                            <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <Label Grid.Column="0" Text="{Binding ScopeLabel}"
+                                                           Style="{StaticResource TileKicker}"
+                                                           MaxLines="1" />
+                                                    <HorizontalStackLayout Grid.Column="1" Spacing="5">
+                                                        <Border Style="{StaticResource Chip}" Margin="0"
+                                                                IsVisible="{Binding IsExpired}">
+                                                            <Label Text="Expired" Style="{StaticResource ChipText}" />
+                                                        </Border>
+                                                        <Border Style="{StaticResource Chip}" Margin="0"
+                                                                IsVisible="{Binding IsPinned}">
+                                                            <Label Text="Pinned" Style="{StaticResource ChipText}" />
+                                                        </Border>
+                                                    </HorizontalStackLayout>
+                                                </Grid>
+                                                <Label Text="{Binding Title}"
+                                                       Style="{StaticResource TileTitle}"
+                                                       FontAttributes="Bold" HeightRequest="36" />
+                                                <Label Text="{Binding Body}"
+                                                       Style="{StaticResource TileSubtle}" />
+                                                <Label Text="{Binding MetaLine}"
+                                                       Style="{StaticResource TileMeta}" />
+                                            </VerticalStackLayout>
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </FlexLayout>
+
+                        <Border Style="{StaticResource WidgetInset}"
+                                IsVisible="{Binding AnnouncementsEmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                            <Label Text="{Binding AnnouncementsEmptyMessage}"
+                                   Style="{StaticResource EmptyStateText}" />
+                        </Border>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Sport ============ -->
+
+                <Border x:Name="SportsSection" Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8" Margin="0,0,0,12">
+                            <Label Grid.Column="0" Text="Sport"
+                                   Style="{StaticResource WidgetTitle}" />
+                            <Border Grid.Column="1" Style="{StaticResource CountBadge}"
+                                    IsVisible="{Binding HasSports}">
+                                <Label Text="{Binding SportsCount}"
+                                       Style="{StaticResource CountBadgeText}" />
+                            </Border>
+                            <Label Grid.Column="2" Style="{StaticResource WidgetChevron}" />
+                        </Grid>
+
+                        <!-- Posting needs sport, team, opponent, venue, date and
+                             time, which is a form rather than a widget — so the
+                             button opens the sports page where those fields are.
+                             Hidden unless the rules would actually accept it. -->
+                        <Button Text="Post to sport" Style="{StaticResource BrandButtonOutline}"
+                                HorizontalOptions="Start" FontSize="12"
+                                Padding="12,6" MinimumHeightRequest="36" Margin="0,0,0,10"
+                                IsVisible="{Binding CanPostSports}"
+                                Clicked="OnPostSportsClicked" />
+
+                        <FlexLayout BindableLayout.ItemsSource="{Binding SportsItems}"
+                                    Style="{StaticResource TileGrid}"
+                                    IsVisible="{Binding HasSports}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:SportsRow">
+                                    <Border Style="{StaticResource Tile}">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnSportsItemTapped" />
+                                        </Border.GestureRecognizers>
+                                        <VerticalStackLayout Spacing="0">
+                                            <BoxView Style="{StaticResource TileAccent}"
+                                                     Color="{StaticResource BrandAccent}" />
+                                            <Image Source="{Binding ImageUrl}" Aspect="AspectFill"
+                                                   HeightRequest="72"
+                                                   IsVisible="{Binding HasImage}" />
+                                            <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                <Label Text="{Binding KindLabel}"
+                                                       Style="{StaticResource TileKicker}" />
+                                                <Label Text="{Binding Title}"
+                                                       Style="{StaticResource TileTitle}"
+                                                       HeightRequest="36" />
+                                                <Label Text="{Binding MetaLine}"
+                                                       Style="{StaticResource TileMeta}" />
+                                            </VerticalStackLayout>
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </FlexLayout>
+
+                        <Border Style="{StaticResource WidgetInset}"
+                                IsVisible="{Binding SportsEmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                            <Label Text="{Binding SportsEmptyMessage}"
+                                   Style="{StaticResource EmptyStateText}" />
+                        </Border>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Newspaper ============ -->
+                <!-- Shared control - see Controls/NewspaperWidget.xaml. Hidden for
+                     visitors and guests; the rail item follows the same test. -->
+                <controls:NewspaperWidget x:Name="NewspaperSection" />
+
             </VerticalStackLayout>
         </VerticalStackLayout>
         </ScrollView>
+        </RefreshView>
     
         <!-- Declared last so it draws ON TOP of the content it floats over.
              Shared with every other role's dashboard — see NavigationRail.xaml. -->

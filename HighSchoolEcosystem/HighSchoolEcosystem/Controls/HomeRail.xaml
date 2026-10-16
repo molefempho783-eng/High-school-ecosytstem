@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    A one-button sidebar for pages that aren't a dashboard.
+
+    The full NavigationRail is a table of contents for the page it sits on, and
+    these pages have no sections to scroll to — so they get the one thing that
+    was actually missing: a way home. Same width, same colour, same position, so
+    the left edge of the app looks identical everywhere.
+
+    It takes a real Grid COLUMN rather than floating like the dashboard rail.
+    The dashboard rail floats because it expands to show labels and would
+    otherwise squeeze the page; this never expands, so a column is simpler and
+    needs no padding surgery on fifteen existing layouts.
+
+    No BindingContext of any kind: it pops the navigation stack itself, so it
+    can be dropped onto any page regardless of what view model that page uses.
+-->
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:app="clr-namespace:HighSchoolEcosystem"
+             x:Class="HighSchoolEcosystem.Controls.HomeRail"
+             WidthRequest="44"
+             MinimumWidthRequest="44"
+             BackgroundColor="{StaticResource BrandDark}"
+             HorizontalOptions="Start"
+             VerticalOptions="Fill">
+    <VerticalStackLayout Padding="0,10" Spacing="0">
+        <Grid HeightRequest="44" WidthRequest="44"
+              SemanticProperties.Description="Home">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnHomeTapped" />
+            </Grid.GestureRecognizers>
+            <!-- An image, not a font glyph: bundled per platform, so it can't
+                 go blank if a font fails to load. -->
+            <Image Source="rail_home.png" WidthRequest="22" HeightRequest="22"
+                   HorizontalOptions="Center" VerticalOptions="Center" />
+        </Grid>
+    </VerticalStackLayout>
+</ContentView>

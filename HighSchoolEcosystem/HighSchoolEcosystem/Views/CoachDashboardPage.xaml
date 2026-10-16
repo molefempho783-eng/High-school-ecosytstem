@@ -6,8 +6,10 @@
 -->
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:app="clr-namespace:HighSchoolEcosystem"
              xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
              xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
+             xmlns:models="clr-namespace:HighSchoolEcosystem.Models"
              x:Class="HighSchoolEcosystem.Views.CoachDashboardPage"
              x:DataType="viewModels:CoachDashboardViewModel"
              Title="Home">
@@ -27,19 +29,15 @@
                     <controls:DashboardHeader />
 
                     <!-- 44 on the left clears the floating rail. -->
-                <VerticalStackLayout Padding="52,12,10,12" Spacing="12">
+                <VerticalStackLayout Padding="50,12,8,12" Spacing="12">
 
                         <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
                         <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
                                IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
 
-                        <Button Text="Post a fixture or result" Style="{StaticResource BrandButton}"
-                                HorizontalOptions="Start" IsVisible="{Binding CanPostSports}"
-                                Clicked="OnSportsTapped" />
-
                         <!-- ============ Needs a result ============ -->
 
-                        <Border Style="{StaticResource Widget}" IsVisible="{Binding HasAwaitingResult}">
+                        <Border x:Name="ResultsNeededSection" Style="{StaticResource Widget}" IsVisible="{Binding HasAwaitingResult}">
                             <VerticalStackLayout Spacing="0">
                                 <HorizontalStackLayout Margin="0,0,0,10">
                                     <Label Text="Needs a result" Style="{StaticResource WidgetTitle}" />
@@ -55,27 +53,129 @@
                                 </Grid>
                                 <BoxView Style="{StaticResource SectionRule}" />
 
-                                    <FlexLayout BindableLayout.ItemsSource="{Binding AwaitingResult}"
-                                                Style="{StaticResource TileGrid}" IsVisible="{Binding HasAwaitingResult}">
-                                        <BindableLayout.ItemTemplate>
+                                    <!-- The coach's Work to do: matches played, not yet written up.
+                                         A list for the same reason the student's is - read down it,
+                                         act on the first one. Bounded so a backlog scrolls. -->
+                                    <CollectionView ItemsSource="{Binding AwaitingResult}"
+                                                    HeightRequest="{Binding AwaitingResult, Converter={StaticResource ListHeight}, ConverterParameter='66,4'}" SelectionMode="None"
+                                                    IsVisible="{Binding HasAwaitingResult}">
+                                        <CollectionView.ItemTemplate>
                                             <DataTemplate x:DataType="viewModels:SportsRow">
-                                                <Border Style="{StaticResource Tile}">
-                                                <Border.GestureRecognizers>
-                                                    <TapGestureRecognizer Tapped="OnSportsTapped" />
-                                                </Border.GestureRecognizers>
-                                                    <VerticalStackLayout Spacing="0">
-                                                        <BoxView Style="{StaticResource TileAccent}" Color="{StaticResource OverdueText}" />
-                                                        <VerticalStackLayout Style="{StaticResource TileBody}">
-                                                            <Label Text="{Binding KindLabel}" Style="{StaticResource TileKicker}" />
-                                                            <Label Text="{Binding Title}" Style="{StaticResource TileTitle}" HeightRequest="36" />
-                                                            <Label Text="{Binding MetaLine}" Style="{StaticResource TileMetaOverdue}" />
+                                                <VerticalStackLayout Spacing="0">
+                                                    <Grid Style="{StaticResource ListRow}" ColumnDefinitions="4,*,Auto">
+                                                        <Grid.GestureRecognizers>
+                                                            <TapGestureRecognizer Tapped="OnSportsItemTapped" />
+                                                        </Grid.GestureRecognizers>
+                                                        <BoxView Grid.Column="0" WidthRequest="4"
+                                                                 Color="{StaticResource OverdueText}" VerticalOptions="Fill" />
+                                                        <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                                            <Label Text="{Binding Title}" Style="{StaticResource RowTitle}" />
+                                                            <Label Text="{Binding MetaLine}" Style="{StaticResource RowMetaOverdue}" />
                                                         </VerticalStackLayout>
-                                                    </VerticalStackLayout>
-                                                </Border>
-                                            </DataTemplate>
-                                        </BindableLayout.ItemTemplate>
-                                    </FlexLayout>
 
+                                                        <!-- The whole point of this section: type the score
+                                                             without leaving the dashboard. -->
+                                                        <Button Grid.Column="2" Text="Add score"
+                                                                Style="{StaticResource BrandButtonOutline}"
+                                                                FontSize="11" Padding="10,4"
+                                                                MinimumHeightRequest="32"
+                                                                VerticalOptions="Center"
+                                                                IsVisible="{Binding CanManage}"
+                                                                Clicked="OnRecordResultClicked" />
+                                                    </Grid>
+                                                    <BoxView Style="{StaticResource RowRule}" />
+                                                </VerticalStackLayout>
+                                            </DataTemplate>
+                                        </CollectionView.ItemTemplate>
+                                    </CollectionView>
+
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- ============ My teams ============ -->
+
+                        <!--
+                            A grid, not a list: you BROWSE your squads and open
+                            one, you don't work through them. The queue on this
+                            page is "Needs a result" above.
+                        -->
+                        <Border x:Name="TeamsSection" Style="{StaticResource Widget}">
+                            <VerticalStackLayout Spacing="0">
+                                <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8" Margin="0,0,0,4">
+                                    <Label Grid.Column="0" Text="My teams" Style="{StaticResource WidgetTitle}" />
+                                    <Border Grid.Column="1" Style="{StaticResource CountBadge}"
+                                            IsVisible="{Binding HasTeams}">
+                                        <Label Text="{Binding TeamsCount}" Style="{StaticResource CountBadgeText}" />
+                                    </Border>
+                                    <Label Grid.Column="2" Style="{StaticResource WidgetChevron}" />
+                                </Grid>
+                                <Label Text="Tap a team to pick the squad and post practice times."
+                                       Style="{StaticResource RowSubtle}" Margin="0,0,0,10" />
+
+                                <Button Text="New team" Style="{StaticResource BrandButtonOutline}"
+                                        HorizontalOptions="Start" FontSize="12"
+                                        Padding="12,6" MinimumHeightRequest="36" Margin="0,0,0,10"
+                                        IsVisible="{Binding CanManageTeams}"
+                                        Command="{Binding StartCreateTeamCommand}" />
+
+                                <Border Style="{StaticResource WidgetInset}" Margin="0,0,0,10"
+                                        IsVisible="{Binding IsTeamFormVisible}">
+                                    <VerticalStackLayout Spacing="9">
+                                        <Label Text="New team" Style="{StaticResource SectionHeading}" />
+                                        <Label Text="You become the coach of any team you create. The squad is picked afterwards, inside the team."
+                                               Style="{StaticResource RowSubtle}" />
+
+                                        <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                            <Entry Placeholder="Team name, e.g. U16A Rugby"
+                                                   Text="{Binding NewTeamName}" />
+                                        </Border>
+                                        <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                            <Entry Placeholder="Sport, e.g. Rugby" Text="{Binding NewTeamSport}" />
+                                        </Border>
+                                        <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                            <Entry Placeholder="Season (optional), e.g. 2026"
+                                                   Text="{Binding NewTeamSeason}" />
+                                        </Border>
+
+                                        <HorizontalStackLayout Spacing="8">
+                                            <Button Text="Create team" Style="{StaticResource BrandButton}"
+                                                    Command="{Binding CreateTeamCommand}" />
+                                            <Button Text="Cancel" Style="{StaticResource BrandButtonOutline}"
+                                                    Command="{Binding CancelCreateTeamCommand}" />
+                                        </HorizontalStackLayout>
+                                    </VerticalStackLayout>
+                                </Border>
+
+                                <FlexLayout BindableLayout.ItemsSource="{Binding MyTeams}"
+                                            Style="{StaticResource TileGrid}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="models:SportsTeam">
+                                            <Border Style="{StaticResource Tile}">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnTeamTapped" />
+                                                </Border.GestureRecognizers>
+                                                <VerticalStackLayout Spacing="0">
+                                                    <BoxView Style="{StaticResource TileAccent}"
+                                                             Color="{StaticResource BrandBright}" />
+                                                    <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                        <Label Text="{Binding Sport}" Style="{StaticResource TileKicker}"
+                                                               MaxLines="1" />
+                                                        <Label Text="{Binding Name}" Style="{StaticResource TileTitle}"
+                                                               HeightRequest="36" />
+                                                        <Label Text="{Binding MemberLabel}" Style="{StaticResource TileMeta}" />
+                                                        <Label Text="{Binding Season}" Style="{StaticResource TileSubtle}"
+                                                               MaxLines="1" />
+                                                    </VerticalStackLayout>
+                                                </VerticalStackLayout>
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+
+                                <Border Style="{StaticResource WidgetInset}"
+                                        IsVisible="{Binding TeamsEmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                                    <Label Text="{Binding TeamsEmptyMessage}" Style="{StaticResource EmptyStateText}" />
+                                </Border>
                             </VerticalStackLayout>
                         </Border>
 
@@ -95,17 +195,44 @@
                                 </Grid>
                                 <BoxView Style="{StaticResource SectionRule}" />
 
+                                    <!-- A coach always has this, but it's gated anyway so the
+                                         same widget serves an admin or journalist unchanged. -->
+                                    <Button Text="Post to sport" Style="{StaticResource BrandButtonOutline}"
+                                            HorizontalOptions="Start" FontSize="12"
+                                            Padding="12,6" MinimumHeightRequest="36" Margin="0,0,0,10"
+                                            IsVisible="{Binding CanPostSports}"
+                                            Clicked="OnPostSportsClicked" />
+
                                     <FlexLayout BindableLayout.ItemsSource="{Binding Upcoming}"
                                                 Style="{StaticResource TileGrid}" IsVisible="{Binding HasUpcoming}">
                                         <BindableLayout.ItemTemplate>
                                             <DataTemplate x:DataType="viewModels:SportsRow">
                                                 <Border Style="{StaticResource Tile}">
+                                                    <Border.GestureRecognizers>
+                                                        <TapGestureRecognizer Tapped="OnSportsItemTapped" />
+                                                    </Border.GestureRecognizers>
                                                     <VerticalStackLayout Spacing="0">
                                                         <BoxView Style="{StaticResource TileAccent}" Color="{StaticResource BrandAccent}" />
+                                                        <Image Source="{Binding ImageUrl}" Aspect="AspectFill"
+                                                               HeightRequest="72"
+                                                               IsVisible="{Binding HasImage}" />
                                                         <VerticalStackLayout Style="{StaticResource TileBody}">
                                                             <Label Text="{Binding KindLabel}" Style="{StaticResource TileKicker}" />
                                                             <Label Text="{Binding Title}" Style="{StaticResource TileTitle}" HeightRequest="36" />
                                                             <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
+
+                                                            <!-- Also on upcoming fixtures, not just overdue
+                                                                 ones: a coach types the score on the touchline
+                                                                 the moment the whistle goes, which is before
+                                                                 the match has aged into "needs a result". -->
+                                                            <Button Text="Add score"
+                                                                    Style="{StaticResource BrandButtonOutline}"
+                                                                    FontSize="11" Padding="8,4"
+                                                                    MinimumHeightRequest="32"
+                                                                    Margin="0,6,0,0"
+                                                                    HorizontalOptions="Start"
+                                                                    IsVisible="{Binding CanManage}"
+                                                                    Clicked="OnRecordResultClicked" />
                                                         </VerticalStackLayout>
                                                     </VerticalStackLayout>
                                                 </Border>
@@ -143,6 +270,9 @@
                                                 <Border Style="{StaticResource Tile}">
                                                     <VerticalStackLayout Spacing="0">
                                                         <BoxView Style="{StaticResource TileAccent}" Color="{StaticResource BrandAccent}" />
+                                                        <Image Source="{Binding ImageUrl}" Aspect="AspectFill"
+                                                               HeightRequest="72"
+                                                               IsVisible="{Binding HasImage}" />
                                                         <VerticalStackLayout Style="{StaticResource TileBody}">
                                                             <Label Text="{Binding KindLabel}" Style="{StaticResource TileKicker}" />
                                                             <Label Text="{Binding Title}" Style="{StaticResource TileTitle}" HeightRequest="36" />
@@ -161,7 +291,7 @@
 
                                 <Label Text="Manage all sport" Style="{StaticResource WidgetFooterLink}">
                                     <Label.GestureRecognizers>
-                                        <TapGestureRecognizer Tapped="OnSportsTapped" />
+                                        <TapGestureRecognizer Tapped="OnSportsItemTapped" />
                                     </Label.GestureRecognizers>
                                 </Label>
                             </VerticalStackLayout>
@@ -184,15 +314,28 @@
                                 </Grid>
                                 <BoxView Style="{StaticResource SectionRule}" />
 
+                        <!-- School-wide notices are admin-only, and are written
+                             on the school dashboard where the composer lives.
+                             Hidden for everyone else. -->
+                        <Button Text="New announcement" Style="{StaticResource BrandButtonOutline}"
+                                HorizontalOptions="Start" FontSize="12"
+                                Padding="12,6" MinimumHeightRequest="36" Margin="0,0,0,10"
+                                IsVisible="{Binding CanManageAnnouncements}"
+                                Clicked="OnPostAnnouncementClicked" />
+
                                     <FlexLayout BindableLayout.ItemsSource="{Binding Announcements}"
                                                 Style="{StaticResource TileGrid}" IsVisible="{Binding HasAnnouncements}">
                                         <BindableLayout.ItemTemplate>
                                             <DataTemplate x:DataType="viewModels:AnnouncementRow">
                                                 <Border Style="{StaticResource TileWide}">
+                                                    <!-- Tap for the whole notice and its byline. -->
+                                                    <Border.GestureRecognizers>
+                                                        <TapGestureRecognizer Tapped="OnAnnouncementTapped" />
+                                                    </Border.GestureRecognizers>
                                                     <VerticalStackLayout Spacing="0">
                                                         <BoxView Style="{StaticResource TileAccent}" Color="{StaticResource BrandBright}" />
                                                         <VerticalStackLayout Style="{StaticResource TileBody}">
-                                                            <Label Text="&#x1F4E2;" Style="{StaticResource TileGlyph}" />
+                                                            <Label Text="{x:Static app:Icons.Announcement}" Style="{StaticResource TileGlyph}" />
                                                             <Label Text="{Binding Title}" Style="{StaticResource TileTitle}"
                                                                    FontAttributes="Bold" HeightRequest="36" />
                                                             <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
@@ -210,6 +353,46 @@
                                 </Border>
                             </VerticalStackLayout>
                         </Border>
+
+                        <!-- ============ Newspaper ============ -->
+                        <!-- Shared control - see Controls/NewspaperWidget.xaml. Hidden for
+                             visitors and guests; the rail item follows the same test. -->
+                        <controls:NewspaperWidget x:Name="NewspaperSection" />
+
+                <!-- ============ Your other roles ============ -->
+
+                <!--
+                    Cross-role links live in a widget, not on the rail. The rail
+                    only ever scrolls now, so anything that opens another screen
+                    has to be something you can see and read first.
+
+                    The whole card hides when the user holds no other role, so
+                    nobody is shown a door they can't open.
+                -->
+                <Border x:Name="RolesSection" Style="{StaticResource Widget}">
+                    <Border.Triggers>
+                        <MultiTrigger TargetType="Border">
+                            <MultiTrigger.Conditions>
+                                <BindingCondition Binding="{Binding HasTeacherTools}" Value="False" />
+                                <BindingCondition Binding="{Binding HasAdminTools}" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter Property="IsVisible" Value="False" />
+                        </MultiTrigger>
+                    </Border.Triggers>
+                    <VerticalStackLayout Spacing="10">
+                        <HorizontalStackLayout>
+                            <Label Text="Your other roles" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+                        <Button Text="Switch to teacher tools" Style="{StaticResource BrandButtonOutline}"
+                                HorizontalOptions="Start"
+                                IsVisible="{Binding HasTeacherTools}" Clicked="OnTeacherToolsClicked" />
+                        <Button Text="Switch to admin tools" Style="{StaticResource BrandButtonOutline}"
+                                HorizontalOptions="Start"
+                                IsVisible="{Binding HasAdminTools}" Clicked="OnAdminToolsClicked" />
+                    </VerticalStackLayout>
+                </Border>
+
 
                     </VerticalStackLayout>
                 </VerticalStackLayout>

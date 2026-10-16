@@ -11,6 +11,13 @@ namespace HighSchoolEcosystem.ViewModels;
 public sealed record ChildSummaryRow(string StudentId, string Name)
 {
     public ObservableCollection<StudentWorkRow> Overdue { get; init; } = [];
+
+    /// <summary>Tests and exams, in their own section above the dated list.</summary>
+    public ObservableCollection<StudentWorkRow> Assessments { get; init; } = [];
+
+    public bool HasAssessments => Assessments.Count > 0;
+    public string AssessmentsCount => Assessments.Count.ToString();
+
     public ObservableCollection<StudentWorkRow> Upcoming { get; init; } = [];
     public ObservableCollection<GradeRow> RecentGrades { get; init; } = [];
 
@@ -65,16 +72,23 @@ public partial class ParentDashboardViewModel : DashboardShellViewModel
     private readonly IUserProfileService _profiles;
     private readonly IClassService _classes;
     private readonly IContentService _content;
+    private readonly ITeamService _teams;
+
+    private readonly IConversationService _conversations;
 
     public ParentDashboardViewModel(
         IUserProfileService profiles,
         IClassService classes,
         IContentService content,
-        ISchoolInfoProvider schoolInfo)
+        ITeamService teams,
+        ISchoolInfoProvider schoolInfo,
+        IConversationService conversations)
     {
+        _conversations = conversations;
         _profiles = profiles;
         _classes = classes;
         _content = content;
+        _teams = teams;
         SchoolName = schoolInfo.Current.DisplayName;
 
         // Built here as well as after load, so a failed profile read leaves a
@@ -106,7 +120,23 @@ public partial class ParentDashboardViewModel : DashboardShellViewModel
     /// </summary>
     private readonly List<SchoolClass> _childClasses = [];
 
+    /// <summary>
+    /// Teams the children are in, gathered during the child pass so the
+    /// announcements feed can pull their notices without refetching.
+    /// </summary>
+    private readonly List<SportsTeam> _childTeams = [];
+
     /// <summary>Set when this parent also holds a staff role.</summary>
+
+    /// <summary>
+    /// Mirrors IContentService, which mirrors the rules. UI convenience only —
+    /// hiding a button the rules would refuse is politeness, not security.
+    /// </summary>
+    [ObservableProperty] private bool canPostSports;
+
+    /// <summary>True for admins: school-wide notices are admin-only.</summary>
+    [ObservableProperty] private bool canManageAnnouncements;
+
     [ObservableProperty] private bool hasTeacherTools;
     [ObservableProperty] private bool hasAdminTools;
 
@@ -132,6 +162,7 @@ public partial class ParentDashboardViewModel : DashboardShellViewModel
 
             BuildRail();
             await LoadChildrenAsync(profile);
+            await LoadMessagesAsync(_conversations);
             await LoadSchoolContentAsync();
         }
         catch (Exception ex)
@@ -165,6 +196,7 @@ public partial class ParentDashboardViewModel : DashboardShellViewModel
         // Rebuilt from scratch: a child unlinked since the last load must not
         // leave their classes' notices in the feed.
         _childClasses.Clear();
+        _childTeams.Clear();
 
         foreach (var studentId in profile.LinkedStudentIds)
         {
@@ -209,6 +241,22 @@ public partial class ParentDashboardViewModel : DashboardShellViewModel
         // Kept so the announcements feed can include notices from the classes
         // this parent's children are actually in. isParentOfClassMember in the
         // rules is what makes that readable.
+        // Same idea for teams: isParentOfTeamMember in the rules is what makes
+        // a squad's notices readable to this parent.
+        try
+        {
+            foreach (var t in await _teams.GetTeamsForStudentAsync(studentId))
+            {
+                if (_childTeams.All(existing => existing.Id != t.Id)) _childTeams.Add(t);
+            }
+        }
+        catch (Exception ex)
+        {
+            // A missing team list must not cost the parent their child's
+            // classwork, which is the more important half of this screen.
+            CrashLogger.Log($"ParentDashboard.ChildTeams:{studentId}", ex);
+        }
+
         foreach (var c in classes)
         {
             if (_childClasses.All(existing => existing.Id != c.Id)) _childClasses.Add(c);
@@ -216,6 +264,7 @@ public partial class ParentDashboardViewModel : DashboardShellViewModel
 
         var overdue = new List<StudentWorkRow>();
         var upcoming = new List<StudentWorkRow>();
+        var sittings = new List<StudentWorkRow>();
         var grades = new List<GradeRow>();
 
         var now = DateTimeOffset.Now;
@@ -225,13 +274,25 @@ public partial class ParentDashboardViewModel : DashboardShellViewModel
         {
             var assignments = await _classes.GetAssignmentsAsync(schoolClass.Id);
 
-            foreach (var assignment in assignments.Where(a => a.Kind.IsSubmittable() && a.DueDate >= cutoff))
+            // Assessments are included, and bucketed separately — a parent needs
+            // to know an exam is coming as much as the child does. They keep the
+            // same asymmetric lifetime as on the student dashboard: homework
+            // lingers a week past its deadline, an exam vanishes once it's sat.
+            foreach (var assignment in assignments)
             {
+                var isSitting = assignment.Kind.IsAssessment();
+                if (!isSitting && !assignment.Kind.IsSubmittable()) continue;
+
+                var floor = isSitting ? now : cutoff;
+                if (assignment.DueDate < floor) continue;
+
                 var row = new StudentWorkRow(
                     schoolClass.Id, assignment.Id, assignment.Title, schoolClass.Name,
                     assignment.Kind, assignment.DueDate, assignment.Points);
 
-                if (assignment.DueDate < now) overdue.Add(row); else upcoming.Add(row);
+                if (isSitting) sittings.Add(row);
+                else if (assignment.DueDate < now) overdue.Add(row);
+                else upcoming.Add(row);
             }
 
             var submissions = await _classes.GetSubmissionsForStudentAsync(schoolClass.Id, studentId);
@@ -262,6 +323,7 @@ public partial class ParentDashboardViewModel : DashboardShellViewModel
             BannerColor = colour,
             MetaLine = string.Join(" · ", meta),
             Overdue = new ObservableCollection<StudentWorkRow>(overdue.OrderBy(w => w.DueDate)),
+            Assessments = new ObservableCollection<StudentWorkRow>(sittings.OrderBy(w => w.DueDate)),
             Upcoming = new ObservableCollection<StudentWorkRow>(upcoming.OrderBy(w => w.DueDate).Take(5)),
             // Most recent first, capped: this is a summary, not a transcript.
             RecentGrades = new ObservableCollection<GradeRow>(
@@ -274,6 +336,8 @@ public partial class ParentDashboardViewModel : DashboardShellViewModel
         try
         {
             await _content.PrimeAsync();
+            CanPostSports = _content.CanPostSports;
+            CanManageAnnouncements = _content.CanManageAnnouncements;
 
             var schoolNotices = await _content.GetAnnouncementsAsync();
 
@@ -283,7 +347,14 @@ public partial class ParentDashboardViewModel : DashboardShellViewModel
                 ? await _classes.GetAnnouncementsForClassesAsync(_childClasses)
                 : [];
 
-            var merged = schoolNotices.Concat(classNotices)
+            // Team notices as well. A parent is usually the lift to practice,
+            // so "training moved to Thursday" matters to them at least as much
+            // as it does to the child.
+            var teamNotices = _childTeams.Count > 0
+                ? await _teams.GetNoticesForTeamsAsync(_childTeams)
+                : [];
+
+            var merged = schoolNotices.Concat(classNotices).Concat(teamNotices)
                 .Select(a => new AnnouncementRow(a, false))
                 .OrderByDescending(r => r.IsPinned)
                 .ThenByDescending(r => r.Source.PostedAt)
@@ -314,37 +385,43 @@ public partial class ParentDashboardViewModel : DashboardShellViewModel
             AnnouncementsEmptyMessage = "We couldn't load announcements right now.";
             SportsEmptyMessage = "We couldn't load the sports feed right now.";
         }
+
+        await LoadNewspaperAsync(_content);
     }
 
     private void BuildRail()
     {
+        // Same order as the widgets on ParentDashboardPage, top to bottom.
+        // Scroll only — Account is the sole exception.
         var items = new List<RailItem>
         {
-            new("\U0001F464", "My children", new RelayCommand(() => OnRailAction?.Invoke("children"))),
-            new("\U0001F4E2", "Announcements", new RelayCommand(() => OnRailAction?.Invoke("announcements")))
-            { StartsGroup = true },
-            new("\U0001F3C6", "Sport", new RelayCommand(() => OnRailAction?.Invoke("sport")))
+            new(Icons.Children, "My children", new RelayCommand(() => OnRailAction?.Invoke("children"))),
+            new(Icons.Chat, "Messages", new RelayCommand(() => OnRailAction?.Invoke("messages"))),
+            new(Icons.Announcement, "Announcements", new RelayCommand(() => OnRailAction?.Invoke("announcements"))),
+            new(Icons.Sport, "Sport", new RelayCommand(() => OnRailAction?.Invoke("sport"))),
+            new(Icons.Newspaper, "Newspaper", new RelayCommand(() => OnRailAction?.Invoke("newspaper")))
         };
 
-        if (HasTeacherTools)
-        {
-            items.Add(new("\U0001F4D8", "Teacher tools",
-                new RelayCommand(() => OnRailAction?.Invoke("teacher"))) { StartsGroup = true });
-        }
+        if (HasTeacherTools || HasAdminTools)
+            items.Add(new(Icons.OtherRoles, "Your other roles", new RelayCommand(() => OnRailAction?.Invoke("roles"))));
 
-        if (HasAdminTools)
-        {
-            items.Add(new("⚙", "Admin tools",
-                new RelayCommand(() => OnRailAction?.Invoke("admin")))
-            { StartsGroup = !HasTeacherTools });
-        }
-
-        items.Add(new("●", "Account",
+        items.Add(new(Icons.Account, "Account",
             new RelayCommand(() => OnRailAction?.Invoke("account"))) { StartsGroup = true });
 
         RailItems = new ObservableCollection<RailItem>(items);
     }
 
+    /// <summary>
+    /// Pull to refresh.
+    ///
+    /// The try/finally is load-bearing: LoadAsync opens with `if (IsBusy)
+    /// return`, so pulling while a load is already running would return without
+    /// ever clearing IsRefreshing, and the spinner would hang there forever.
+    /// </summary>
     [RelayCommand]
-    private Task RefreshAsync() => LoadAsync();
+    private async Task RefreshAsync()
+    {
+        try { await LoadAsync(); }
+        finally { IsRefreshing = false; }
+    }
 }

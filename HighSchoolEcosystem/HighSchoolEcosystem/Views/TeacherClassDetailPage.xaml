@@ -9,15 +9,25 @@
 -->
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:app="clr-namespace:HighSchoolEcosystem"
              xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
              x:Class="HighSchoolEcosystem.Views.TeacherClassDetailPage"
              x:DataType="viewModels:TeacherClassDetailViewModel"
              Title="Class">
-    <ScrollView Style="{StaticResource PageCanvas}">
+    <!-- Pull to refresh: this page shows submission counts and enrolment that
+         change while a teacher has it open. -->
+    <!-- Single cell: the rail floats over the content rather than taking a
+         column, so expanding it covers the page instead of squeezing it. -->
+    <Grid>
+    <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}">
+    <ScrollView x:Name="ContentScroll" Style="{StaticResource PageCanvas}">
         <VerticalStackLayout Spacing="0">
 
             <!-- ============ Header ============ -->
-            <Grid Style="{StaticResource CourseBanner}" BackgroundColor="{StaticResource BrandDark}">
+            <!-- Inset variant: this page's rail FLOATS, so a 20 padding would
+                 put the class name underneath it. -->
+            <Grid Style="{StaticResource CourseBannerInset}" BackgroundColor="{StaticResource BrandDark}">
                 <VerticalStackLayout VerticalOptions="Center" Spacing="3">
                     <Label Text="{Binding ClassName}" Style="{StaticResource CourseBannerTitle}" />
                     <Label Text="{Binding EnrolmentSummary}" FontSize="12"
@@ -26,7 +36,8 @@
             </Grid>
             <BoxView Style="{StaticResource NavRuleBar}" />
 
-            <VerticalStackLayout Padding="12" Spacing="12">
+            <!-- 52 on the left clears the floating 44px rail. -->
+            <VerticalStackLayout Padding="50,12,8,12" Spacing="12">
 
                 <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
 
@@ -38,7 +49,7 @@
 
                 <!-- ============ Course content ============ -->
 
-                <Border Style="{StaticResource Widget}">
+                <Border x:Name="ContentSection" Style="{StaticResource Widget}">
                     <Grid ColumnDefinitions="*,Auto">
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnMaterialsClicked" />
@@ -52,9 +63,35 @@
                     </Grid>
                 </Border>
 
+                <!-- ============ Class chat ============ -->
+                <!-- The class's group chat: students and teacher, everyone sees every
+                     message. Opens its own page; the list needs the full screen. -->
+                <Border Style="{StaticResource Widget}">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnClassChatTapped" />
+                        </Grid.GestureRecognizers>
+                        <Label Grid.Column="0" Text="{x:Static app:Icons.Chat}" Style="{StaticResource RowIcon}"
+                               FontSize="20" VerticalOptions="Center" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="1">
+                            <Label Text="Class chat" Style="{StaticResource ToolRowTitle}" FontSize="16" />
+                            <Label Text="Your class&apos;s group chat. You can remove any message."
+                                   Style="{StaticResource RowSubtle}" />
+                        </VerticalStackLayout>
+                        <HorizontalStackLayout Grid.Column="2" Spacing="6" VerticalOptions="Center">
+                            <Border Style="{StaticResource UnreadBadge}" Margin="0" Stroke="Transparent"
+                                    VerticalOptions="Center" IsVisible="{Binding ChatUnread.HasUnread}"
+                                    SemanticProperties.Description="{Binding ChatUnread.Description}">
+                                <Label Text="{Binding ChatUnread.Label}" Style="{StaticResource UnreadBadgeText}" />
+                            </Border>
+                            <Label Style="{StaticResource ToolRowChevron}" />
+                        </HorizontalStackLayout>
+                    </Grid>
+                </Border>
+
                 <!-- ============ Class notices ============ -->
 
-                <Border Style="{StaticResource Widget}">
+                <Border x:Name="NoticesSection" Style="{StaticResource Widget}">
                     <VerticalStackLayout Spacing="0">
                         <HorizontalStackLayout Margin="0,0,0,4">
                             <Label Text="Class notices" Style="{StaticResource WidgetTitle}" />
@@ -131,7 +168,7 @@
                                                      Color="{StaticResource BrandBright}" />
                                             <VerticalStackLayout Style="{StaticResource TileBody}">
                                                 <Grid ColumnDefinitions="*,Auto">
-                                                    <Label Grid.Column="0" Text="&#x1F4E2;"
+                                                    <Label Grid.Column="0" Text="{x:Static app:Icons.Announcement}"
                                                            Style="{StaticResource TileGlyph}" />
                                                     <HorizontalStackLayout Grid.Column="1" Spacing="5">
                                                         <Border Style="{StaticResource Chip}" Margin="0"
@@ -176,7 +213,7 @@
 
                 <!-- ============ Assignments ============ -->
 
-                <Border Style="{StaticResource Widget}">
+                <Border x:Name="WorkSection" Style="{StaticResource Widget}">
                     <VerticalStackLayout Spacing="0">
                         <HorizontalStackLayout Margin="0,0,0,4">
                             <Label Text="Assignments and assessments" Style="{StaticResource WidgetTitle}" />
@@ -247,12 +284,12 @@
                         <Label Text="Tap one to mark what came back, or to set its questions and answer key."
                                Style="{StaticResource RowSubtle}" Margin="0,0,0,8" />
 
-                        <CollectionView ItemsSource="{Binding Assignments}" HeightRequest="260"
+                        <CollectionView ItemsSource="{Binding Assignments}" HeightRequest="{Binding Assignments, Converter={StaticResource ListHeight}, ConverterParameter='66,5'}"
                                         SelectionMode="Single" SelectionChanged="OnAssignmentSelected">
                             <CollectionView.ItemTemplate>
                                 <DataTemplate x:DataType="viewModels:AssignmentRow">
                                     <Grid Padding="0,10" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="9">
-                                        <Label Grid.Column="0" Text="&#x1F5CE;" Style="{StaticResource RowIcon}" />
+                                        <Label Grid.Column="0" Text="{x:Static app:Icons.Work}" Style="{StaticResource RowIcon}" />
                                         <VerticalStackLayout Grid.Column="1" Spacing="1">
                                             <Label Text="{Binding Title}" Style="{StaticResource RowTitle}" />
                                             <Label Text="{Binding Subtitle}" Style="{StaticResource RowMeta}" />
@@ -288,13 +325,13 @@
 
                 <!-- ============ Students ============ -->
 
-                <Border Style="{StaticResource Widget}">
+                <Border x:Name="StudentsSection" Style="{StaticResource Widget}">
                     <VerticalStackLayout Spacing="0">
                         <HorizontalStackLayout Margin="0,0,0,4">
                             <Label Text="Students" Style="{StaticResource WidgetTitle}" />
                             <Label Style="{StaticResource WidgetChevron}" />
                         </HorizontalStackLayout>
-                        <Label Text="Search, tick, then save. Ticks are kept while you keep searching."
+                        <Label Text="Search, tick, then save. Ticks are kept while you keep searching. Tap Marks to see or edit one student's full record."
                                Style="{StaticResource RowSubtle}" Margin="0,0,0,10" />
 
                         <Border Style="{StaticResource WidgetInset}" Padding="8,0" Margin="0,0,0,8">
@@ -305,16 +342,33 @@
                         <Label Text="{Binding EnrolmentSummary}" Style="{StaticResource RowMeta}"
                                Margin="0,0,0,8" />
 
+                        <!-- The ONE list still on a fixed height, deliberately.
+                             It sits under a search box, and a list that grows and
+                             shrinks with every keystroke makes the whole page
+                             jump while you type. Everything else in the app sizes
+                             to its content via the ListHeight converter. -->
                         <CollectionView ItemsSource="{Binding Students}" HeightRequest="260">
                             <CollectionView.ItemTemplate>
                                 <DataTemplate x:DataType="viewModels:StudentEnrolment">
-                                    <Grid Padding="0,9" ColumnDefinitions="Auto,*">
+                                    <Grid Padding="0,9" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                         <CheckBox Grid.Column="0" IsChecked="{Binding IsEnrolled}" />
                                         <VerticalStackLayout Grid.Column="1" Spacing="1"
                                                              VerticalOptions="Center">
                                             <Label Text="{Binding Name}" FontSize="14" />
                                             <Label Text="{Binding Email}" Style="{StaticResource RowSubtle}" />
                                         </VerticalStackLayout>
+
+                                        <!-- Only for students actually in the class:
+                                             there are no marks to show for someone
+                                             who has never been enrolled, and offering
+                                             the button would be a dead end. -->
+                                        <Button Grid.Column="2" Text="Marks"
+                                                Style="{StaticResource BrandButtonOutline}"
+                                                FontSize="11" Padding="12,5"
+                                                MinimumHeightRequest="34"
+                                                VerticalOptions="Center"
+                                                IsVisible="{Binding IsEnrolled}"
+                                                Clicked="OnStudentMarksClicked" />
                                     </Grid>
                                 </DataTemplate>
                             </CollectionView.ItemTemplate>
@@ -332,7 +386,7 @@
 
                 <!-- ============ Class details ============ -->
 
-                <Border Style="{StaticResource Widget}">
+                <Border x:Name="DetailsSection" Style="{StaticResource Widget}">
                     <VerticalStackLayout Spacing="0">
                         <HorizontalStackLayout Margin="0,0,0,12">
                             <Label Text="Class details" Style="{StaticResource WidgetTitle}" />
@@ -358,4 +412,11 @@
             </VerticalStackLayout>
         </VerticalStackLayout>
     </ScrollView>
+    </RefreshView>
+
+        <!-- Declared last so it draws ON TOP of the content it floats over.
+             Same control every dashboard uses; the view model derives from
+             DashboardShellViewModel, so it just works. -->
+        <controls:NavigationRail />
+    </Grid>
 </ContentPage>

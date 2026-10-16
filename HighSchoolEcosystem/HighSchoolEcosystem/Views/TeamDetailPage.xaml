@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    One team, as its coach runs it: notices first, then the squad, then the
+    team's own details.
+
+    Notices come FIRST deliberately. The squad changes at the start of a season;
+    practice times change every week, and that's what a coach opens this page to
+    do.
+
+    Structurally identical to TeacherClassDetailPage — same rail contract, same
+    widget order, same enrolment picker — because a team and a class are the same
+    idea: an owner, a roster, a notice board.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:app="clr-namespace:HighSchoolEcosystem"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
+             x:Class="HighSchoolEcosystem.Views.TeamDetailPage"
+             x:DataType="viewModels:TeamDetailViewModel"
+             Title="Team">
+
+    <!-- Single cell: the rail floats over the content rather than taking a
+         column, so expanding it covers the page instead of squeezing it. -->
+    <Grid>
+    <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}">
+    <ScrollView x:Name="ContentScroll" Style="{StaticResource PageCanvas}">
+        <VerticalStackLayout Spacing="0">
+
+            <!-- 52 on the left, not 16: this page's rail FLOATS over the
+                 content, and anything less puts the team name behind it. -->
+            <!-- 60, matching CourseBannerInset: clears the rail and its
+                 shadow. The content stack below uses 50, which is part of the
+                 tile arithmetic and must not follow this number. -->
+            <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}"
+                                 Padding="60,18,14,18" Spacing="3">
+                <Label Text="{Binding TeamName}" FontSize="20" FontAttributes="Bold"
+                       TextColor="{StaticResource White}" />
+                <Label Text="{Binding TeamMeta}" FontSize="12"
+                       TextColor="{StaticResource White}" Opacity="0.85" />
+            </VerticalStackLayout>
+            <BoxView Style="{StaticResource NavRuleBar}" />
+
+            <!-- 52 on the left clears the floating 44px rail. -->
+            <VerticalStackLayout Padding="50,12,8,12" Spacing="12">
+
+                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+                <Border Style="{StaticResource WidgetInset}"
+                        BackgroundColor="{StaticResource WarningFill}"
+                        IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}">
+                    <Label Text="{Binding StatusMessage}" Style="{StaticResource EmptyStateText}" />
+                </Border>
+
+                <!-- ============ Team notices ============ -->
+
+                <Border x:Name="NoticesSection" Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8" Margin="0,0,0,4">
+                            <Label Grid.Column="0" Text="Team notices" Style="{StaticResource WidgetTitle}" />
+                            <Border Grid.Column="1" Style="{StaticResource CountBadge}"
+                                    IsVisible="{Binding HasNotices}">
+                                <Label Text="{Binding NoticesCount}" Style="{StaticResource CountBadgeText}" />
+                            </Border>
+                            <Label Grid.Column="2" Style="{StaticResource WidgetChevron}" />
+                        </Grid>
+                        <Label Text="Practice times, kit, meeting points, game-day details. Only this squad and their parents see them."
+                               Style="{StaticResource RowSubtle}" Margin="0,0,0,10" />
+
+                        <Button Text="New notice" Style="{StaticResource BrandButtonOutline}"
+                                HorizontalOptions="Start" FontSize="12"
+                                Padding="12,6" MinimumHeightRequest="36" Margin="0,0,0,10"
+                                Command="{Binding StartCreateNoticeCommand}" />
+
+                        <Border Style="{StaticResource WidgetInset}" Margin="0,0,0,10"
+                                IsVisible="{Binding IsNoticeFormVisible}">
+                            <VerticalStackLayout Spacing="9">
+                                <Label Text="{Binding NoticeFormHeading}" Style="{StaticResource SectionHeading}" />
+
+                                <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                    <Entry Placeholder="Title, e.g. Practice moved to Thursday"
+                                           Text="{Binding NewNoticeTitle}" />
+                                </Border>
+                                <Border Style="{StaticResource WidgetInset}" Padding="8,2">
+                                    <Editor Placeholder="When, where, what to bring"
+                                            Text="{Binding NewNoticeBody}" HeightRequest="110" />
+                                </Border>
+
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding NewNoticePinned}" />
+                                    <Label Grid.Column="1" Text="Pin to the top"
+                                           VerticalOptions="Center" Style="{StaticResource RowSubtle}" />
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding NewNoticeExpires}" />
+                                    <Label Grid.Column="1" Text="Remove it on a date"
+                                           VerticalOptions="Center" Style="{StaticResource RowSubtle}" />
+                                </Grid>
+                                <Border Style="{StaticResource WidgetInset}" Padding="8,0"
+                                        IsVisible="{Binding NewNoticeExpires}">
+                                    <DatePicker Date="{Binding NewNoticeExpiryDate}" />
+                                </Border>
+                                <Label Text="The squad stops seeing it after this date. You still will, so you can extend it."
+                                       Style="{StaticResource RowSubtle}"
+                                       IsVisible="{Binding NewNoticeExpires}" />
+
+                                <HorizontalStackLayout Spacing="8">
+                                    <Button Text="{Binding NoticeSaveText}" Style="{StaticResource BrandButton}"
+                                            Command="{Binding SaveNoticeCommand}" />
+                                    <Button Text="Cancel" Style="{StaticResource BrandButtonOutline}"
+                                            Command="{Binding CancelNoticeEditCommand}" />
+                                </HorizontalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <FlexLayout BindableLayout.ItemsSource="{Binding Notices}"
+                                    Style="{StaticResource TileGrid}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:AnnouncementRow">
+                                    <!-- Dimmed once lapsed. The coach is the author
+                                         here, so they keep seeing it and can tell
+                                         WHY the squad stopped. -->
+                                    <Border Style="{StaticResource TileWide}"
+                                            Opacity="{Binding RowOpacity}">
+                                        <VerticalStackLayout Spacing="0">
+                                            <BoxView Style="{StaticResource TileAccent}"
+                                                     Color="{StaticResource BrandAccent}" />
+                                            <VerticalStackLayout Style="{StaticResource TileBody}">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <Label Grid.Column="0" Text="{x:Static app:Icons.Announcement}"
+                                                           Style="{StaticResource TileGlyph}" />
+                                                    <HorizontalStackLayout Grid.Column="1" Spacing="5">
+                                                        <Border Style="{StaticResource Chip}" Margin="0"
+                                                                IsVisible="{Binding IsExpired}">
+                                                            <Label Text="Expired" Style="{StaticResource ChipText}" />
+                                                        </Border>
+                                                        <Border Style="{StaticResource Chip}" Margin="0"
+                                                                IsVisible="{Binding IsPinned}">
+                                                            <Label Text="Pinned" Style="{StaticResource ChipText}" />
+                                                        </Border>
+                                                    </HorizontalStackLayout>
+                                                </Grid>
+                                                <Label Text="{Binding Title}" Style="{StaticResource TileTitle}"
+                                                       FontAttributes="Bold" HeightRequest="36" />
+                                                <Label Text="{Binding Body}" Style="{StaticResource TileSubtle}" />
+                                                <Label Text="{Binding MetaLine}" Style="{StaticResource TileMeta}" />
+
+                                                <HorizontalStackLayout Spacing="6" Margin="0,6,0,0">
+                                                    <Button Text="Edit" Style="{StaticResource BrandButtonOutline}"
+                                                            FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                                            Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeamDetailViewModel}}, Path=StartEditNoticeCommand}"
+                                                            CommandParameter="{Binding .}" />
+                                                    <Button Text="Delete" Style="{StaticResource BrandButtonOutline}"
+                                                            FontSize="11" Padding="10,4" MinimumHeightRequest="32"
+                                                            Clicked="OnDeleteNoticeClicked" />
+                                                </HorizontalStackLayout>
+                                            </VerticalStackLayout>
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </FlexLayout>
+
+                        <Border Style="{StaticResource WidgetInset}"
+                                IsVisible="{Binding NoticesEmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                            <Label Text="{Binding NoticesEmptyMessage}" Style="{StaticResource EmptyStateText}" />
+                        </Border>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Squad ============ -->
+
+                <Border x:Name="SquadSection" Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,4">
+                            <Label Text="Squad" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+                        <Label Text="Search, tick, then save. Ticks are kept while you keep searching."
+                               Style="{StaticResource RowSubtle}" Margin="0,0,0,10" />
+
+                        <Border Style="{StaticResource WidgetInset}" Padding="8,0" Margin="0,0,0,8">
+                            <SearchBar Placeholder="Search by name or email"
+                                       Text="{Binding StudentSearch}" />
+                        </Border>
+
+                        <Label Text="{Binding SquadSummary}" Style="{StaticResource RowMeta}"
+                               Margin="0,0,0,8" />
+
+                        <!-- Fixed height, deliberately: this sits under a search
+                             box, and a list that grows and shrinks with every
+                             keystroke makes the page jump while you type. -->
+                        <CollectionView ItemsSource="{Binding Squad}" HeightRequest="260">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:SquadPick">
+                                    <Grid Padding="0,9" ColumnDefinitions="Auto,*">
+                                        <CheckBox Grid.Column="0" IsChecked="{Binding IsInSquad}" />
+                                        <VerticalStackLayout Grid.Column="1" Spacing="1"
+                                                             VerticalOptions="Center">
+                                            <Label Text="{Binding Name}" FontSize="14" />
+                                            <Label Text="{Binding Email}" Style="{StaticResource RowSubtle}" />
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                            <CollectionView.EmptyView>
+                                <Label Text="No students match that search."
+                                       Style="{StaticResource EmptyStateText}" Padding="10" />
+                            </CollectionView.EmptyView>
+                        </CollectionView>
+
+                        <Button Text="Save squad" Style="{StaticResource BrandButton}"
+                                HorizontalOptions="Start" Margin="0,10,0,0"
+                                Command="{Binding SaveSquadCommand}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ============ Team details ============ -->
+
+                <Border x:Name="DetailsSection" Style="{StaticResource Widget}">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Margin="0,0,0,12">
+                            <Label Text="Team details" Style="{StaticResource WidgetTitle}" />
+                            <Label Style="{StaticResource WidgetChevron}" />
+                        </HorizontalStackLayout>
+
+                        <VerticalStackLayout Spacing="9">
+                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                <Entry Placeholder="Team name, e.g. U16A Rugby" Text="{Binding EditName}" />
+                            </Border>
+                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                <Entry Placeholder="Sport, e.g. Rugby" Text="{Binding EditSport}" />
+                            </Border>
+                            <Border Style="{StaticResource WidgetInset}" Padding="10,2">
+                                <Entry Placeholder="Season (optional), e.g. 2026" Text="{Binding EditSeason}" />
+                            </Border>
+                            <Button Text="Save details" Style="{StaticResource BrandButtonOutline}"
+                                    HorizontalOptions="Start" Command="{Binding SaveDetailsCommand}" />
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </VerticalStackLayout>
+    </ScrollView>
+    </RefreshView>
+
+        <!-- Declared last so it draws ON TOP of the content it floats over. -->
+        <controls:NavigationRail />
+    </Grid>
+</ContentPage>

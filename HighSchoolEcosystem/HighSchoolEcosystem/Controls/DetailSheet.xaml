@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    The styled replacement for DisplayAlert, used when a reader taps an
+    announcement, a sports post or an exam.
+
+    A native alert cannot be styled at all — it's an OS dialog — so a branded app
+    was opening a grey system box with the notice crammed into it. This is the
+    same content in the app's own vocabulary: accent strip, scope chip, title,
+    scrollable body, byline, and the actions.
+
+    ONE step, not two. The old two-step "Manage, then pick" existed only because
+    an alert carries at most two buttons. A sheet has room, so Edit and Delete
+    sit beside Close and an author saves a tap.
+-->
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="HighSchoolEcosystem.Controls.DetailSheet">
+
+    <Grid>
+        <!-- Scrim. Tapping it dismisses, which is what everyone expects of a
+             dimmed background. -->
+        <BoxView x:Name="Scrim" Style="{StaticResource SheetScrim}">
+            <BoxView.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnScrimTapped" />
+            </BoxView.GestureRecognizers>
+        </BoxView>
+
+        <Border x:Name="Card" Style="{StaticResource SheetCard}">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+                <!-- Grip + accent strip -->
+                <VerticalStackLayout Grid.Row="0" Spacing="0">
+                    <BoxView Style="{StaticResource SheetGrip}" Margin="0,10,0,10" />
+                    <BoxView x:Name="Accent" HeightRequest="4"
+                             Color="{StaticResource BrandBright}" />
+                </VerticalStackLayout>
+
+                <!-- Scope chip and title -->
+                <VerticalStackLayout Grid.Row="1" Padding="18,14,18,6" Spacing="6">
+                    <Border x:Name="ScopeChip" Style="{StaticResource Chip}" Margin="0"
+                            HorizontalOptions="Start">
+                        <Label x:Name="ScopeLabel" Style="{StaticResource ChipText}" />
+                    </Border>
+                    <Label x:Name="TitleLabel" Style="{StaticResource SheetTitle}" />
+                </VerticalStackLayout>
+
+                <!-- Body. Scrolls, and capped by the card's MaximumHeightRequest
+                     so a long notice never covers the whole screen. -->
+                <ScrollView Grid.Row="2" Padding="18,0,18,10">
+                    <Label x:Name="BodyLabel" Style="{StaticResource SheetBody}" />
+                </ScrollView>
+
+                <!-- Actions -->
+                <VerticalStackLayout Grid.Row="3" Padding="18,4,18,18" Spacing="8">
+                    <BoxView Style="{StaticResource RowRule}" Margin="0,0,0,8" />
+
+                    <HorizontalStackLayout Spacing="8" HorizontalOptions="End">
+                        <Button x:Name="DeleteButton" Text="Delete"
+                                Style="{StaticResource BrandButtonOutline}"
+                                FontSize="12" Padding="14,7" MinimumHeightRequest="40"
+                                IsVisible="False"
+                                TextColor="{StaticResource OverdueText}"
+                                Clicked="OnDeleteClicked" />
+                        <Button x:Name="EditButton" Text="Edit"
+                                Style="{StaticResource BrandButtonOutline}"
+                                FontSize="12" Padding="14,7" MinimumHeightRequest="40"
+                                IsVisible="False"
+                                Clicked="OnEditClicked" />
+                        <Button x:Name="CloseButton" Text="Close"
+                                Style="{StaticResource BrandButton}"
+                                FontSize="12" Padding="18,7" MinimumHeightRequest="40"
+                                Clicked="OnCloseClicked" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+    </Grid>
+</ContentView>

@@ -41,17 +41,34 @@ public partial class AdminDashboardPage : ContentPage
     {
         switch (action)
         {
-            case "users": await PushAsync<AdminUsersPage>(); break;
-            case "invites": await PushAsync<AdminInvitesPage>(); break;
-            case "settings": await PushAsync<AdminSettingsPage>(); break;
-            // Announcements are composed from the dashboard's own section, so
-            // both of these land on the shared dashboard rather than a page
-            // that no longer exists.
-            case "announcements": await PushAsync<DashboardPage>(); break;
-            case "sport": await PushAsync<SportsPage>(); break;
-            case "teacher": await PushAsync<TeacherDashboardPage>(); break;
-            case "personal": await PushAsync<DashboardPage>(); break;
+            // Scroll only. Account is the single exception.
+            case "tools": await ScrollToAsync(ToolsSection); break;
+            case "roles": await ScrollToAsync(RolesSection); break;
+            case "content": await ScrollToAsync(ContentSection); break;
+            case "announcements": await ScrollToAsync(AnnouncementsSection); break;
+            case "sport": await ScrollToAsync(SportsSection); break;
+            case "newspaper": await ScrollToAsync(NewspaperSection); break;
             case "account": await PushAsync<AccountPage>(); break;
+        }
+    }
+
+    /// <summary>
+    /// Scrolls a widget into view. This page had no such helper until the rail
+    /// stopped navigating — every one of its rail items used to open a
+    /// different page instead.
+    /// </summary>
+    private async Task ScrollToAsync(VisualElement? target)
+    {
+        if (target is null || !target.IsVisible) return;
+
+        try
+        {
+            await ContentScroll.ScrollToAsync(target, ScrollToPosition.Start, animated: true);
+        }
+        catch (Exception ex)
+        {
+            // Scrolling to an element that hasn't been laid out yet throws.
+            CrashLogger.Log("AdminDashboard.ScrollTo", ex);
         }
     }
 
@@ -66,4 +83,62 @@ public partial class AdminDashboardPage : ContentPage
             CrashLogger.Log($"Navigate:{typeof(TPage).Name}", ex);
         }
     }
+
+    /// <summary>
+    /// The whole notice plus who posted it. Read-only on this dashboard —
+    /// school-wide notices are composed with the admin tools.
+    /// </summary>
+    private async void OnAnnouncementTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is not AnnouncementRow row) return;
+
+        try
+        {
+            await DetailPopup.ShowAsync(
+                this, row.Title, row.Source.DetailText,
+                row.Source.ScopeLabel, row.AccentColor, canManage: false);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Dashboard.AnnouncementDetail", ex);
+        }
+    }
+
+    /// <summary>Full details for one fixture, result or article.</summary>
+    private async void OnSportsItemTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is not SportsRow row) return;
+
+        try
+        {
+            await DetailPopup.ShowAsync(
+                this, row.Title, row.Source.DetailText,
+                row.Source.SportAndTeam, Color.FromArgb("#8CC63E"), canManage: false);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Dashboard.SportsDetail", ex);
+        }
+    }
+
+    /// <summary>
+    /// Opens the sports page to post a fixture, result or article.
+    ///
+    /// Navigation, not a popup: a post needs sport, team, opponent, venue, date
+    /// and time. The button is hidden unless the rules would accept the write,
+    /// which is politeness rather than security — firestore.rules is the
+    /// boundary either way.
+    /// </summary>
+    private async void OnPostSportsClicked(object? sender, EventArgs e)
+        => await PushAsync<SportsPage>();
+
+    /// <summary>
+    /// Opens the school dashboard, where school-wide announcements are written.
+    ///
+    /// There is deliberately ONE composer rather than one per dashboard: two
+    /// would drift, and an announcement form has enough state (pinned, public,
+    /// expiry, edit-in-place) that the drift would be silent.
+    /// </summary>
+    private async void OnPostAnnouncementClicked(object? sender, EventArgs e)
+        => await PushAsync<DashboardPage>();
 }

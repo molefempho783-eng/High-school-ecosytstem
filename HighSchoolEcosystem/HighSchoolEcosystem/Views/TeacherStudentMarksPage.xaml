@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    One student's marks for one class, editable, with a CSV export.
+
+    A list rather than a tile grid, and deliberately so: every row carries a
+    mark box and a feedback box, and an editable field in a 132-wide tile is
+    unusable. This is the same exception the marking screen and the teacher's
+    material rows take.
+
+    BindableLayout rather than CollectionView because the rows have variable
+    height once feedback wraps, and an unbounded CollectionView inside a
+    ScrollView collapses to nothing on mobile.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.TeacherStudentMarksPage"
+             x:DataType="viewModels:TeacherStudentMarksViewModel"
+             Title="Marks">
+
+    <!-- A one-button sidebar: the same left edge as the dashboards,
+         carrying the one thing a pushed page needs - a way home. -->
+    <Grid ColumnDefinitions="44,*">
+        <RefreshView Grid.Column="1" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}">
+            <ScrollView Style="{StaticResource PageCanvas}">
+                <VerticalStackLayout Spacing="0">
+
+                    <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                        <Label Text="{Binding StudentName}" FontSize="20" FontAttributes="Bold"
+                               TextColor="{StaticResource White}" />
+                        <Label Text="{Binding ClassName}" FontSize="12"
+                               TextColor="{StaticResource White}" Opacity="0.85" />
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource NavRuleBar}" />
+
+                    <VerticalStackLayout Padding="12" Spacing="12">
+
+                        <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                        <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
+                               IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
+
+                        <!-- ============ Mark history ============ -->
+
+                        <Border Style="{StaticResource Widget}">
+                            <VerticalStackLayout Spacing="0">
+                                <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8" Margin="0,0,0,4">
+                                    <Label Grid.Column="0" Text="Mark history"
+                                           Style="{StaticResource WidgetTitle}" />
+                                    <Border Grid.Column="1" Style="{StaticResource CountBadge}"
+                                            IsVisible="{Binding HasMarks}">
+                                        <Label Text="{Binding MarksCount}"
+                                               Style="{StaticResource CountBadgeText}" />
+                                    </Border>
+                                    <Label Grid.Column="2" Style="{StaticResource WidgetChevron}" />
+                                </Grid>
+
+                                <Label Text="{Binding AverageLabel}" Style="{StaticResource RowSubtle}"
+                                       IsVisible="{Binding HasAverage}" />
+                                <Label Text="Every assignment is listed, including work never handed in — you can still put a mark against it."
+                                       Style="{StaticResource RowSubtle}" Margin="0,2,0,12" />
+
+                                <Button Text="Export to CSV" Style="{StaticResource BrandButtonOutline}"
+                                        HorizontalOptions="Start" Margin="0,0,0,12"
+                                        IsVisible="{Binding HasMarks}"
+                                        Clicked="OnExportClicked" />
+
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Marks}"
+                                                     Spacing="0">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="viewModels:StudentMarkRow">
+                                            <Grid ColumnDefinitions="4,*" ColumnSpacing="9"
+                                                  Padding="0,12">
+
+                                                <!-- The band, matching the colour the
+                                                     student sees on their own tile. -->
+                                                <BoxView Grid.Column="0"
+                                                         Color="{Binding BandColor}"
+                                                         WidthRequest="4"
+                                                         VerticalOptions="Fill" />
+
+                                                <VerticalStackLayout Grid.Column="1" Spacing="3">
+                                                    <Label Text="{Binding Title}" Style="{StaticResource RowTitle}" />
+                                                    <Label Text="{Binding MetaLine}" Style="{StaticResource RowMeta}" />
+                                                    <Label Text="{Binding StateLabel}" Style="{StaticResource RowSubtle}" />
+
+                                                    <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="8"
+                                                          Margin="0,4,0,0">
+                                                        <Border Grid.Column="0" Style="{StaticResource WidgetInset}"
+                                                                Padding="10,2" WidthRequest="78">
+                                                            <Entry Placeholder="Mark" Keyboard="Numeric"
+                                                                   Text="{Binding GradeText}" />
+                                                        </Border>
+                                                        <Label Grid.Column="1" Text="{Binding OutOf, StringFormat='/ {0}'}"
+                                                               Style="{StaticResource RowMeta}"
+                                                               VerticalOptions="Center" />
+                                                        <Button Grid.Column="2" Text="Save"
+                                                                Style="{StaticResource BrandButtonOutline}"
+                                                                FontSize="11" Padding="12,5"
+                                                                MinimumHeightRequest="34"
+                                                                Command="{Binding Source={RelativeSource AncestorType={x:Type viewModels:TeacherStudentMarksViewModel}}, Path=SaveCommand}"
+                                                                CommandParameter="{Binding .}" />
+                                                    </Grid>
+
+                                                    <Border Style="{StaticResource WidgetInset}" Padding="8,2"
+                                                            Margin="0,4,0,0">
+                                                        <Editor Placeholder="Feedback for this student (optional)"
+                                                                Text="{Binding Feedback}" HeightRequest="70" />
+                                                    </Border>
+
+                                                    <Label Text="Saved" Style="{StaticResource RowSubtle}"
+                                                           TextColor="{StaticResource SuccessText}"
+                                                           IsVisible="{Binding JustSaved}" />
+                                                </VerticalStackLayout>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+
+                                <Border Style="{StaticResource WidgetInset}"
+                                        IsVisible="{Binding EmptyMessage, Converter={StaticResource StringNotEmpty}}">
+                                    <Label Text="{Binding EmptyMessage}"
+                                           Style="{StaticResource EmptyStateText}" />
+                                </Border>
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+        </RefreshView>
+        <!-- Declared LAST so it draws on top: several pages bleed
+             their header past the content edge with a negative
+             margin, which would otherwise paint over the rail. -->
+        <controls:HomeRail Grid.Column="0" />
+    </Grid>
+</ContentPage>

@@ -1,5 +1,6 @@
 using HighSchoolEcosystem.Services;
 using HighSchoolEcosystem.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace HighSchoolEcosystem.Views;
 
@@ -7,10 +8,27 @@ public partial class TeacherMaterialsPage : ContentPage
 {
     private readonly TeacherMaterialsViewModel _viewModel;
 
-    public TeacherMaterialsPage(TeacherMaterialsViewModel viewModel)
+    private readonly IServiceProvider _services;
+
+    public TeacherMaterialsPage(TeacherMaterialsViewModel viewModel, IServiceProvider services)
     {
         InitializeComponent();
         BindingContext = _viewModel = viewModel;
+        _services = services;
+    }
+
+    private async void OnTextbookImportClicked(object? sender, EventArgs e)
+    {
+        try
+        {
+            var page = _services.GetRequiredService<TeacherTextbooksPage>();
+            page.Load(_viewModel.ClassId, _viewModel.ClassName);
+            await Navigation.PushAsync(page);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Navigate:TeacherTextbooks", ex);
+        }
     }
 
     public void Load(string classId, string className)
@@ -52,13 +70,13 @@ public partial class TeacherMaterialsPage : ContentPage
         }
         catch (PermissionException)
         {
-            await DisplayAlert("Permission needed",
+            await DisplayAlertAsync("Permission needed",
                 "Allow file access in your device settings to upload material.", "OK");
         }
         catch (Exception ex)
         {
             CrashLogger.Log("TeacherMaterials.PickFile", ex);
-            await DisplayAlert("Couldn't open that file",
+            await DisplayAlertAsync("Couldn't open that file",
                 "Please try a different file.", "OK");
         }
     }

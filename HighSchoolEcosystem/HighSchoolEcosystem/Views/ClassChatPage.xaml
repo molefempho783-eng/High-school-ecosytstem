@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    A class's group chat: its students and its teacher. Every message is seen
+    by everyone in the class - there is no private messaging anywhere in the app.
+
+    The list is a CollectionView in a Grid row, NOT inside a ScrollView: a chat
+    grows without limit, so it has to virtualise, and a CollectionView inside a
+    ScrollView collapses on mobile (see CLAUDE.md).
+
+    New messages arrive by polling while this page is open (ClassChatPage.xaml.cs).
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:app="clr-namespace:HighSchoolEcosystem"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.ClassChatPage"
+             x:DataType="viewModels:ClassChatViewModel"
+             Title="Class chat"
+             BackgroundColor="{AppThemeBinding Light={StaticResource PageBackground}, Dark={StaticResource PageBackgroundDark}}">
+
+    <Grid ColumnDefinitions="44,*">
+        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto,*,Auto">
+
+            <!-- ============ Banner ============ -->
+            <VerticalStackLayout Grid.Row="0" BackgroundColor="{StaticResource BrandDark}" Padding="16,14" Spacing="3">
+                <Label Text="{Binding ClassName}" FontSize="19" FontAttributes="Bold"
+                       TextColor="{StaticResource White}" MaxLines="2" LineBreakMode="TailTruncation" />
+                <Label Text="{Binding Subtitle}" FontSize="12"
+                       TextColor="{StaticResource White}" Opacity="0.85" />
+            </VerticalStackLayout>
+            <BoxView Grid.Row="1" Style="{StaticResource NavRuleBar}" />
+
+            <!-- ============ Status ============ -->
+            <Border Grid.Row="2" Style="{StaticResource WidgetInset}" Margin="10,8,10,0"
+                    BackgroundColor="{StaticResource WarningFill}"
+                    IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}">
+                <!-- Explicit colour: the fill is light in both themes. -->
+                <Label Text="{Binding StatusMessage}" Style="{StaticResource EmptyStateText}"
+                       TextColor="{StaticResource TextPrimary}" />
+            </Border>
+
+            <!-- ============ Messages ============ -->
+            <RefreshView Grid.Row="3" IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshCommand}">
+                <CollectionView x:Name="MessageList"
+                                ItemsSource="{Binding Messages}"
+                                ItemsUpdatingScrollMode="KeepLastItemInView"
+                                SelectionMode="None">
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout Padding="24,40" Spacing="6" HorizontalOptions="Center">
+                            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                            <Label Text="No messages yet. Say hello to your class."
+                                   Style="{StaticResource EmptyStateText}" HorizontalTextAlignment="Center"
+                                   IsVisible="{Binding CanSend}" />
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="viewModels:ChatMessageRow">
+                            <!-- Outer padding is the gap between bubbles; the
+                                 bubble itself is capped so long messages wrap
+                                 instead of running edge to edge. -->
+                            <Grid Padding="10,4">
+                                <!-- Shapes as strings, not elements: a trigger that set one
+                                     shared RoundRectangle on every bubble would try to
+                                     parent the same object many times. -->
+                                <Border StrokeThickness="0" Padding="11,7" MaximumWidthRequest="320"
+                                        HorizontalOptions="Start"
+                                        StrokeShape="RoundRectangle 12,12,12,3"
+                                        BackgroundColor="{AppThemeBinding Light={StaticResource CardBackground}, Dark={StaticResource CardBackgroundDark}}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnMessageTapped" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <!-- Your own messages: right-hand side, brand colour. -->
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsMine}" Value="True">
+                                            <Setter Property="HorizontalOptions" Value="End" />
+                                            <Setter Property="BackgroundColor" Value="{StaticResource BrandDark}" />
+                                            <Setter Property="StrokeShape" Value="RoundRectangle 12,12,3,12" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <VerticalStackLayout Spacing="2">
+                                        <Label Text="{Binding AuthorLabel}" FontSize="11.5" FontAttributes="Bold"
+                                               IsVisible="{Binding IsOthers}"
+                                               TextColor="{AppThemeBinding Light={StaticResource TextSecondary}, Dark={StaticResource TextSecondaryDark}}">
+                                            <Label.Triggers>
+                                                <!-- The teacher stands out in the conversation. -->
+                                                <DataTrigger TargetType="Label" Binding="{Binding IsTeacher}" Value="True">
+                                                    <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource LinkText}, Dark={StaticResource LinkTextDark}}" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                        <!-- A picture shows inline. Tap the bubble to open it full size. -->
+                                        <Image Source="{Binding AttachmentUrl}" IsVisible="{Binding IsImage}"
+                                               Aspect="AspectFill" HeightRequest="190" WidthRequest="240"
+                                               Margin="0,2,0,2" />
+
+                                        <!-- A file shows as a card. Fixed light colours so it reads the
+                                             same inside a dark "mine" bubble and a light one. -->
+                                        <Border IsVisible="{Binding IsFile}" StrokeThickness="0" Padding="9,7"
+                                                Margin="0,2,0,2" StrokeShape="RoundRectangle 8"
+                                                BackgroundColor="{StaticResource CardBackground}">
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                <Label Grid.Column="0" Text="{x:Static app:Icons.File}"
+                                                       FontFamily="MaterialSymbols" FontSize="26"
+                                                       TextColor="{StaticResource BrandDark}" VerticalOptions="Center" />
+                                                <VerticalStackLayout Grid.Column="1" Spacing="0" VerticalOptions="Center">
+                                                    <Label Text="{Binding AttachmentName}" FontSize="13" FontAttributes="Bold"
+                                                           TextColor="{StaticResource TextPrimary}"
+                                                           LineBreakMode="MiddleTruncation" MaxLines="1" />
+                                                    <Label Text="{Binding AttachmentSizeLabel}" FontSize="11"
+                                                           TextColor="{StaticResource TextSecondary}" />
+                                                </VerticalStackLayout>
+                                            </Grid>
+                                        </Border>
+
+                                        <Label Text="{Binding Text}" FontSize="14.5" LineBreakMode="WordWrap"
+                                               IsVisible="{Binding HasText}"
+                                               TextColor="{AppThemeBinding Light={StaticResource TextPrimary}, Dark={StaticResource TextPrimaryDark}}">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label" Binding="{Binding IsMine}" Value="True">
+                                                    <Setter Property="TextColor" Value="{StaticResource White}" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                        <Label Text="{Binding TimeLabel}" FontSize="10.5" HorizontalOptions="End"
+                                               TextColor="{AppThemeBinding Light={StaticResource TextMuted}, Dark={StaticResource TextMutedDark}}">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label" Binding="{Binding IsMine}" Value="True">
+                                                    <Setter Property="TextColor" Value="{StaticResource White}" />
+                                                    <Setter Property="Opacity" Value="0.75" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                    </VerticalStackLayout>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </RefreshView>
+
+            <!-- ============ Compose ============ -->
+            <!-- Hidden for admins (read and moderate only) and non-members. -->
+            <Border Grid.Row="4" IsVisible="{Binding CanSend}" StrokeThickness="0" Padding="10,8"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource CardBackground}, Dark={StaticResource CardBackgroundDark}}">
+                <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8">
+
+                    <!-- Picked but not sent yet. Fixed light colours: the fill is
+                         light in both themes. -->
+                    <Border Grid.Row="0" Grid.ColumnSpan="3" Style="{StaticResource WidgetInset}"
+                            BackgroundColor="{StaticResource WarningFill}" Margin="0,0,0,8"
+                            IsVisible="{Binding HasPendingAttachment}">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                            <Image Grid.Column="0" Source="{Binding PendingPreview}" IsVisible="{Binding PendingIsImage}"
+                                   HeightRequest="44" WidthRequest="44" Aspect="AspectFill" />
+                            <Label Grid.Column="0" Text="{x:Static app:Icons.File}" FontFamily="MaterialSymbols"
+                                   FontSize="26" TextColor="{StaticResource BrandDark}" VerticalOptions="Center"
+                                   IsVisible="{Binding PendingIsImage, Converter={StaticResource InvertedBool}}" />
+                            <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                                <Label Text="{Binding PendingLabel}" FontSize="12.5" FontAttributes="Bold"
+                                       TextColor="{StaticResource TextPrimary}" LineBreakMode="MiddleTruncation" MaxLines="1" />
+                                <Label Text="Sends with your next message." FontSize="11.5"
+                                       TextColor="{StaticResource TextSecondary}" />
+                            </VerticalStackLayout>
+                            <Button Grid.Column="2" Text="{x:Static app:Icons.Close}" FontFamily="MaterialSymbols"
+                                    FontSize="18" Padding="6" MinimumHeightRequest="36" MinimumWidthRequest="36"
+                                    BackgroundColor="Transparent" TextColor="{StaticResource TextPrimary}"
+                                    SemanticProperties.Description="Remove attachment"
+                                    Command="{Binding ClearAttachmentCommand}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Attach: hidden when no Storage bucket is configured. -->
+                    <Button Grid.Row="1" Grid.Column="0" Text="{x:Static app:Icons.Attach}"
+                            FontFamily="MaterialSymbols" FontSize="22"
+                            Style="{StaticResource BrandButtonOutline}" Padding="8,4"
+                            MinimumWidthRequest="44" VerticalOptions="End"
+                            IsVisible="{Binding CanAttach}"
+                            SemanticProperties.Description="Attach a picture or file"
+                            Clicked="OnAttachClicked" />
+                    <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource WidgetInset}" Padding="8,0">
+                        <Editor Text="{Binding Draft}" Placeholder="Message the class"
+                                AutoSize="TextChanges" MaximumHeightRequest="120"
+                                MaxLength="{Binding MaxLength}" />
+                    </Border>
+                    <Button Grid.Row="1" Grid.Column="2" Text="Send" Style="{StaticResource BrandButton}"
+                            VerticalOptions="End"
+                            Command="{Binding SendCommand}" />
+                    <Label Grid.Row="2" Grid.ColumnSpan="3" Text="{Binding CharactersLeft}"
+                           Style="{StaticResource RowSubtle}" Margin="2,4,0,0"
+                           IsVisible="{Binding CharactersLeft, Converter={StaticResource StringNotEmpty}}" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Declared LAST so it draws on top. -->
+        <controls:HomeRail Grid.Column="0" />
+    </Grid>
+</ContentPage>

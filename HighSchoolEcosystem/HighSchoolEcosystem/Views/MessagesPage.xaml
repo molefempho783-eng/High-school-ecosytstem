@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    Teacher-parent messages: the user's threads, and who they can start one with.
+
+    Both are short lists you read top to bottom and act on, so they're rows,
+    not tiles. A thread is always about one child, which the second line says,
+    because a parent with two children at the school may be talking to the same
+    teacher about each.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:HighSchoolEcosystem.Controls"
+             xmlns:viewModels="clr-namespace:HighSchoolEcosystem.ViewModels"
+             x:Class="HighSchoolEcosystem.Views.MessagesPage"
+             x:DataType="viewModels:MessagesViewModel"
+             Title="Messages">
+
+    <Grid ColumnDefinitions="44,*">
+        <RefreshView Grid.Column="1" IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshCommand}">
+            <ScrollView Style="{StaticResource PageCanvas}">
+                <VerticalStackLayout Spacing="0">
+
+                    <VerticalStackLayout BackgroundColor="{StaticResource BrandDark}" Padding="16,18" Spacing="3">
+                        <Label Text="Messages" FontSize="20" FontAttributes="Bold" TextColor="{StaticResource White}" />
+                        <Label Text="Between teachers and parents, about a child" FontSize="13"
+                               TextColor="{StaticResource White}" Opacity="0.85" />
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource NavRuleBar}" />
+
+                    <VerticalStackLayout Padding="12" Spacing="12">
+
+                        <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                        <Label Text="{Binding StatusMessage}" Style="{StaticResource RowMetaOverdue}"
+                               IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmpty}}" />
+
+                        <Label Text="Messages are kept by the school, and school administrators can read them."
+                               Style="{StaticResource RowSubtle}" />
+
+                        <!-- ============ Conversations ============ -->
+                        <Border Style="{StaticResource Widget}" IsVisible="{Binding HasConversations}">
+                            <VerticalStackLayout Spacing="0">
+                                <HorizontalStackLayout Margin="0,0,0,10">
+                                    <Label Text="Conversations" Style="{StaticResource WidgetTitle}" />
+                                    <Label Style="{StaticResource WidgetChevron}" />
+                                </HorizontalStackLayout>
+                                <BoxView Style="{StaticResource SectionRule}" />
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Conversations}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="viewModels:ConversationRow">
+                                            <VerticalStackLayout Spacing="0">
+                                                <Grid Style="{StaticResource ListRow}" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                    <Grid.GestureRecognizers>
+                                                        <TapGestureRecognizer Tapped="OnConversationTapped" />
+                                                    </Grid.GestureRecognizers>
+                                                    <VerticalStackLayout Grid.Column="0" Spacing="1">
+                                                        <Label Text="{Binding OtherName}" Style="{StaticResource RowTitle}">
+                                                            <Label.Triggers>
+                                                                <DataTrigger TargetType="Label" Binding="{Binding IsUnread}" Value="True">
+                                                                    <Setter Property="FontAttributes" Value="Bold" />
+                                                                </DataTrigger>
+                                                            </Label.Triggers>
+                                                        </Label>
+                                                        <Label Text="{Binding About}" Style="{StaticResource RowMeta}" />
+                                                        <Label Text="{Binding Preview}" Style="{StaticResource RowSubtle}"
+                                                               MaxLines="1" LineBreakMode="TailTruncation" />
+                                                    </VerticalStackLayout>
+                                                    <VerticalStackLayout Grid.Column="1" Spacing="6" HorizontalOptions="End">
+                                                        <Label Text="{Binding TimeLabel}" Style="{StaticResource RowSubtle}"
+                                                               HorizontalOptions="End" />
+                                                        <!-- Unread: something new from the other person. -->
+                                                        <Border Style="{StaticResource UnreadBadge}" Margin="0" Stroke="Transparent"
+                                                                HorizontalOptions="End" MinimumWidthRequest="12"
+                                                                HeightRequest="12" Padding="0"
+                                                                IsVisible="{Binding IsUnread}"
+                                                                SemanticProperties.Description="Unread" />
+                                                    </VerticalStackLayout>
+                                                </Grid>
+                                                <BoxView Style="{StaticResource RowRule}" />
+                                            </VerticalStackLayout>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- ============ Start a conversation ============ -->
+                        <Border Style="{StaticResource Widget}">
+                            <VerticalStackLayout Spacing="0">
+                                <HorizontalStackLayout Margin="0,0,0,10">
+                                    <Label Text="Start a conversation" Style="{StaticResource WidgetTitle}" />
+                                    <Label Style="{StaticResource WidgetChevron}" />
+                                </HorizontalStackLayout>
+                                <BoxView Style="{StaticResource SectionRule}" />
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Contacts}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="viewModels:ContactRow">
+                                            <VerticalStackLayout Spacing="0">
+                                                <Grid Style="{StaticResource ListRow}" ColumnDefinitions="*,Auto">
+                                                    <Grid.GestureRecognizers>
+                                                        <TapGestureRecognizer Tapped="OnContactTapped" />
+                                                    </Grid.GestureRecognizers>
+                                                    <VerticalStackLayout Grid.Column="0" Spacing="1">
+                                                        <Label Text="{Binding Name}" Style="{StaticResource RowTitle}" />
+                                                        <Label Text="{Binding About}" Style="{StaticResource RowMeta}" />
+                                                    </VerticalStackLayout>
+                                                    <Label Grid.Column="1" Style="{StaticResource ToolRowChevron}" />
+                                                </Grid>
+                                                <BoxView Style="{StaticResource RowRule}" />
+                                            </VerticalStackLayout>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+                                <Label Text="Everyone you can message already has a conversation above."
+                                       Style="{StaticResource RowSubtle}" Margin="0,6,0,0" IsVisible="False">
+                                    <Label.Triggers>
+                                        <MultiTrigger TargetType="Label">
+                                            <MultiTrigger.Conditions>
+                                                <BindingCondition Binding="{Binding HasContacts}" Value="False" />
+                                                <BindingCondition Binding="{Binding HasConversations}" Value="True" />
+                                            </MultiTrigger.Conditions>
+                                            <Setter Property="IsVisible" Value="True" />
+                                        </MultiTrigger>
+                                    </Label.Triggers>
+                                </Label>
+                                <Label Text="{Binding ContactsEmptyMessage}" Style="{StaticResource EmptyStateText}"
+                                       IsVisible="{Binding ContactsEmptyMessage, Converter={StaticResource StringNotEmpty}}" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+        </RefreshView>
+        <controls:HomeRail Grid.Column="0" />
+    </Grid>
+</ContentPage>

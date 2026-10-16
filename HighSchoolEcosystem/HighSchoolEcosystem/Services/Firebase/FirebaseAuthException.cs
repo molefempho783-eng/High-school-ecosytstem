@@ -3,8 +3,8 @@ namespace HighSchoolEcosystem.Services.Firebase;
 /// <summary>
 /// Thrown when the Firebase Identity Toolkit REST API returns an error.
 /// <see cref="ErrorCode"/> is Firebase's raw code (e.g. "EMAIL_EXISTS");
-/// <see cref="Message"/> is already user-facing, so view models can surface it
-/// directly instead of showing a generic failure string.
+/// <see cref="Exception.Message"/> is already user-facing, so view models can
+/// surface it directly instead of showing a generic failure string.
 /// </summary>
 public sealed class FirebaseAuthException : Exception
 {

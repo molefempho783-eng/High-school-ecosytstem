@@ -69,6 +69,13 @@ public sealed record StudentWorkRow(
         get
         {
             var local = DueDate.ToLocalTime();
+
+            // "Was due" is wrong for an exam — you sat it, you didn't miss a
+            // deadline. Assessments never reach this state anyway (they're
+            // dropped once the date passes), but the wording has to be right
+            // for the hours before that.
+            if (IsAssessment) return $"{local:d MMM, HH:mm}";
+
             return IsOverdue ? $"Was due {local:d MMM}" : $"Due {local:d MMM}";
         }
     }
@@ -84,18 +91,55 @@ public sealed record StudentWorkRow(
     public bool IsOverdue => DueDate < DateTimeOffset.Now;
 
     /// <summary>
-    /// Accent strip on the work tile: red when late, amber when due within a
-    /// day, brand otherwise. Urgency is the one thing worth encoding in colour
-    /// on a wall of tiles.
+    /// True for a test or exam. These appear in Work to do so a student sees
+    /// them coming, but nothing is handed in — tapping one shows its details
+    /// rather than opening a submission page with no submit box on it.
+    /// </summary>
+    public bool IsAssessment => Kind.IsAssessment();
+
+    /// <summary>The row's glyph: a paper for work, a clock for an assessment.</summary>
+    public string Glyph => IsAssessment ? Icons.Assessment : Icons.Work;
+
+    /// <summary>
+    /// Accent strip: red when late, amber when due within a day, brand
+    /// otherwise. Urgency is the one thing worth encoding in colour.
+    ///
+    /// An assessment is never "late" — it happened or it didn't — so it stays
+    /// on the countdown colours right up to the day.
     /// </summary>
     public Color AccentColor
     {
         get
         {
-            if (IsOverdue) return Color.FromArgb("#B3261E");
+            if (IsOverdue && !IsAssessment) return Color.FromArgb("#B3261E");
 
             var hours = (DueDate - DateTimeOffset.Now).TotalHours;
             return hours <= 24 ? Color.FromArgb("#A85400") : Color.FromArgb("#178C8C");
+        }
+    }
+
+    /// <summary>
+    /// What tapping an assessment shows. There's nothing to open, so the row
+    /// explains itself rather than leading somewhere useless.
+    /// </summary>
+    public string DetailText
+    {
+        get
+        {
+            // ClassName is the sheet's chip, so it isn't repeated here.
+            var lines = new List<string>
+            {
+                $"{Kind} · {Points} marks",
+                $"When: {DueDate.ToLocalTime():dddd d MMMM yyyy, HH:mm}"
+            };
+
+            lines.Add(string.Empty);
+            lines.Add(IsAssessment
+                ? "This is written in class — there is nothing to hand in here. "
+                  + "It disappears from Work to do once the date has passed."
+                : "Open it to hand your work in.");
+
+            return string.Join(Environment.NewLine, lines);
         }
     }
 
@@ -149,6 +193,9 @@ public sealed record ClassCardRow(
 
     /// <summary>Flat banner colour standing in for ARC's photography.</summary>
     public Color BannerColor { get; init; } = Colors.Transparent;
+
+    /// <summary>Unread class-chat messages; fills in after the card is shown.</summary>
+    public ChatUnread Unread { get; } = new();
 }
 
 /// <summary>
@@ -160,6 +207,8 @@ public partial class DashboardViewModel : DashboardShellViewModel
 {
     private readonly IUserProfileService _userProfileService;
     private readonly IFirebaseAuthService _auth;
+    private readonly ITeamService _teams;
+    private readonly IClassChatService _chat;
     private readonly IClassService _classes;
     private readonly IContentService _content;
 
@@ -286,11 +335,19 @@ public partial class DashboardViewModel : DashboardShellViewModel
     [ObservableProperty] private bool newAnnouncementPublic;
 
     /// <summary>
-    /// Whether this notice should stop showing on a date. Off by default: most
-    /// school notices have no natural end, and MAUI's DatePicker can't be null,
-    /// so a flag carries "no expiry" rather than a sentinel date.
+    /// Whether this notice should stop showing on a date.
+    ///
+    /// ON by default, with a fortnight's date already filled in. It used to
+    /// default off, which meant a notice only ever disappeared if its author
+    /// remembered to tick a box — so in practice nothing expired and the feed
+    /// filled up with last term's news. Making it opt-OUT means the common case
+    /// (a notice about something that happens on a date) is handled by doing
+    /// nothing, and the rarer standing notice costs one tap.
+    ///
+    /// MAUI's DatePicker can't hold null, so a flag carries "no expiry" rather
+    /// than a sentinel date.
     /// </summary>
-    [ObservableProperty] private bool newAnnouncementExpires;
+    [ObservableProperty] private bool newAnnouncementExpires = true;
 
     [ObservableProperty] private DateTime newAnnouncementExpiryDate = DateTime.Today.AddDays(14);
 
@@ -342,12 +399,16 @@ public partial class DashboardViewModel : DashboardShellViewModel
         IFirebaseAuthService auth,
         IClassService classes,
         IContentService content,
-        ISchoolInfoProvider schoolInfoProvider)
+        ITeamService teams,
+        ISchoolInfoProvider schoolInfoProvider,
+        IClassChatService chat)
     {
+        _chat = chat;
         _userProfileService = userProfileService;
         _auth = auth;
         _classes = classes;
         _content = content;
+        _teams = teams;
         SchoolName = schoolInfoProvider.Current.DisplayName;
 
         // Built here as well as after load, so a failed profile read leaves a
@@ -367,34 +428,42 @@ public partial class DashboardViewModel : DashboardShellViewModel
     /// Rebuilds the rail for the roles this user actually holds. Called after
     /// the profile loads, so a teacher-who-is-also-a-student gets both.
     /// </summary>
+    /// <summary>
+    /// Whether this user can read the Newspaper — decided from the profile so
+    /// the rail can be built before the content service has been primed.
+    /// </summary>
+    private bool _readsNewspaper;
+
     private void BuildRail()
     {
-        var items = new List<RailItem>
-        {
-            new("\U0001F5CE", "Work to do", new RelayCommand(() => OnRailAction?.Invoke("work"))),
-            new("\u25A6", "My classes", new RelayCommand(() => OnRailAction?.Invoke("classes"))),
-            new("\U0001F5D3", "Timetable", new RelayCommand(() => OnRailAction?.Invoke("timetable"))),
-            new("\U0001F4E2", "Announcements", new RelayCommand(() => OnRailAction?.Invoke("announcements")))
-            { StartsGroup = true },
-            new("\U0001F3C6", "Sport", new RelayCommand(() => OnRailAction?.Invoke("sport")))
-        };
+        // ORDER MATTERS: these must appear in the same order as the widgets on
+        // DashboardPage, top to bottom. The rail is a table of contents for the
+        // page, so a rail that disagrees with the page is worse than no rail.
+        //
+        // Every item SCROLLS. Account is the only one that opens another
+        // screen — cross-role links live in the "Your other roles" widget,
+        // which the rail scrolls to like anything else.
+        var items = new List<RailItem>();
 
-        // Cross-links only when the role is actually held, so nobody sees a
-        // door they can't open.
-        if (HasTeacherTools)
-        {
-            items.Add(new("\U0001F4D8", "Teacher tools",
-                new RelayCommand(() => OnRailAction?.Invoke("teacher"))) { StartsGroup = true });
-        }
+        // Matches the RolesSection widget's own visibility condition exactly.
+        // If they ever disagree the rail offers a jump to an invisible card,
+        // which just silently does nothing.
+        if (HasTeacherTools || HasAdminTools)
+            items.Add(new(Icons.OtherRoles, "Your other roles", new RelayCommand(() => OnRailAction?.Invoke("roles"))));
 
-        if (HasAdminTools)
-        {
-            items.Add(new("\u2699", "Admin tools",
-                new RelayCommand(() => OnRailAction?.Invoke("admin")))
-            { StartsGroup = !HasTeacherTools });
-        }
+        items.Add(new(Icons.Work, "Work to do", new RelayCommand(() => OnRailAction?.Invoke("work"))));
+        items.Add(new(Icons.Classes, "My classes", new RelayCommand(() => OnRailAction?.Invoke("classes"))));
+        items.Add(new(Icons.Grades, "My grades", new RelayCommand(() => OnRailAction?.Invoke("grades"))));
+        items.Add(new(Icons.Timetable, "Timetable", new RelayCommand(() => OnRailAction?.Invoke("timetable"))));
+        items.Add(new(Icons.Announcement, "Announcements", new RelayCommand(() => OnRailAction?.Invoke("announcements"))));
+        items.Add(new(Icons.Sport, "Sport", new RelayCommand(() => OnRailAction?.Invoke("sport"))));
 
-        items.Add(new("\u25CF", "Account",
+        // Same test as the Newspaper widget's own visibility: visitors and
+        // guests can't read it, so they get neither the section nor the jump.
+        if (_readsNewspaper)
+            items.Add(new(Icons.Newspaper, "Newspaper", new RelayCommand(() => OnRailAction?.Invoke("newspaper"))));
+
+        items.Add(new(Icons.Account, "Account",
             new RelayCommand(() => OnRailAction?.Invoke("account"))) { StartsGroup = true });
 
         RailItems = new ObservableCollection<RailItem>(items);
@@ -428,6 +497,15 @@ public partial class DashboardViewModel : DashboardShellViewModel
                 ? await _classes.GetAnnouncementsForClassesAsync(_enrolledClasses)
                 : [];
 
+            // Team notices too. A practice time posted to a squad is useless if
+            // the squad has to go looking for it, and sport is the one thing in
+            // this app that changes at short notice — "practice moved to
+            // Thursday" is worth more than anything else on this screen.
+            var myTeams = await _teams.GetTeamsForStudentAsync(_auth.CurrentSession?.UserId ?? string.Empty);
+            var teamNotices = myTeams.Count > 0
+                ? await _teams.GetNoticesForTeamsAsync(myTeams)
+                : [];
+
             var merged = schoolNotices
                 .Select(a => new AnnouncementRow(a, CanManageAnnouncements)
                 {
@@ -435,9 +513,15 @@ public partial class DashboardViewModel : DashboardShellViewModel
                 })
                 .Concat(classNotices.Select(a => new AnnouncementRow(a, false)
                 {
-                    // Class notices carry their class colour, so the two kinds
-                    // are distinguishable without reading the chip.
+                    // Class notices carry their class colour, so the kinds are
+                    // distinguishable without reading the chip.
                     AccentColor = ColourForClass(a.ClassId)
+                }))
+                .Concat(teamNotices.Select(a => new AnnouncementRow(a, false)
+                {
+                    // Sport green, matching the sport widget below — a team
+                    // notice belongs to that half of the student's life.
+                    AccentColor = Color.FromArgb("#8CC63E")
                 }))
                 // Pinned first, then newest — across both sources, so a pinned
                 // class notice can outrank an older school one.
@@ -477,6 +561,10 @@ public partial class DashboardViewModel : DashboardShellViewModel
             AnnouncementsEmptyMessage = "We couldn't load announcements right now.";
             SportsEmptyMessage = "We couldn't load the sports feed right now.";
         }
+
+        // Its own failure handling, so a broken Newspaper can't blank the
+        // notice board above it (or the other way round).
+        await LoadNewspaperAsync(_content);
     }
 
 
@@ -599,6 +687,7 @@ public partial class DashboardViewModel : DashboardShellViewModel
         NewAnnouncementPinned = false;
         NewAnnouncementPublic = false;
         NewAnnouncementExpires = false;
+        NewAnnouncementExpires = true;
         NewAnnouncementExpiryDate = DateTime.Today.AddDays(14);
     }
 
@@ -618,6 +707,7 @@ public partial class DashboardViewModel : DashboardShellViewModel
                 IsGuest = true;
                 HasTeacherTools = false;
                 HasAdminTools = false;
+                _readsNewspaper = false;
                 BuildRail();
                 ClearSchoolWork();
                 DisplayName = "Guest";
@@ -644,6 +734,7 @@ public partial class DashboardViewModel : DashboardShellViewModel
             Initials = InitialsFor(profile.DisplayName);
             HasTeacherTools = profile.HasRole(Role.Teacher);
             HasAdminTools = profile.HasRole(Role.Admin);
+            _readsNewspaper = ReadsNewspaper(profile);
             BuildRail();
 
             // Show every role held, not just the primary one.
@@ -755,6 +846,10 @@ public partial class DashboardViewModel : DashboardShellViewModel
             _enrolledClasses = myClasses.ToList();
             _classColours = colourByClassId;
 
+            // Unawaited: two reads per class, and nothing above depends on it.
+            // The widget carries its own empty state until this lands.
+            _ = LoadGradesAsync(_enrolledClasses);
+
             Color ColourFor(string classId) =>
                 colourByClassId.TryGetValue(classId, out var col) ? col : palette[0];
 
@@ -766,6 +861,10 @@ public partial class DashboardViewModel : DashboardShellViewModel
                     {
                         BannerColor = ColourFor(c.Id)
                     }));
+
+            // Unawaited, like grades: one COUNT read per class, and the cards
+            // are useful before their circles arrive.
+            _ = ChatUnread.LoadAllAsync(_chat, ClassCards.Select(c => (c.ClassId, c.Unread)));
 
             ClassCountLabel = myClasses.Count == 1
                 ? "View all classes (1)"
@@ -803,11 +902,20 @@ public partial class DashboardViewModel : DashboardShellViewModel
 
             var work = await _classes.GetAssignmentsForAsync(myClasses);
 
+            // Tests and exams ARE included now. They can't be handed in, but a
+            // student needs to see them coming more than they need to see any
+            // homework — it's the one thing on this screen they can't catch up
+            // on afterwards.
+            //
+            // They follow a different lifetime, though: an assessment vanishes
+            // once its date has PASSED (you sat it, it's done), whereas homework
+            // lingers a week in Overdue because you can still hand it in late.
+            var now = DateTimeOffset.Now;
+
             var open = work
-                .Where(w => w.Assignment.DueDate >= cutoff)
-                // Tests and exams aren't handed in, so they belong on the class
-                // page as dates, not in a list of things to do.
-                .Where(w => w.Assignment.Kind.IsSubmittable())
+                .Where(w => w.Assignment.Kind.IsSubmittable()
+                    ? w.Assignment.DueDate >= cutoff
+                    : w.Assignment.DueDate >= now)
                 .OrderBy(w => w.Assignment.DueDate)
                 .ToList();
 
@@ -818,7 +926,10 @@ public partial class DashboardViewModel : DashboardShellViewModel
             // One read per open assignment. Bounded by what's shown — a term's
             // back-catalogue is already excluded by the cutoff above — but it is
             // the most expensive thing on this screen, so it's worth watching.
-            var submitted = await SubmittedAssignmentIdsAsync(open);
+            // Only submittable work can have been submitted, so don't spend a
+            // read per exam asking about a submission that cannot exist.
+            var submitted = await SubmittedAssignmentIdsAsync(
+                open.Where(w => w.Assignment.Kind.IsSubmittable()).ToList());
 
             var rows = open
                 .Where(w => !submitted.Contains(w.Assignment.Id))
@@ -830,14 +941,31 @@ public partial class DashboardViewModel : DashboardShellViewModel
             // Partition rather than filter twice: a row is overdue or it isn't,
             // and evaluating IsOverdue once keeps both lists consistent even if
             // the clock ticks past a due time mid-load.
-            var now = DateTimeOffset.Now;
-            var late = rows.Where(r => r.DueDate < now).ToList();
-            var soon = rows.Where(r => r.DueDate >= now).ToList();
+            // Three buckets, not two. An assessment is neither overdue (you sat
+            // it) nor ordinary upcoming work (you can't hand it in), and burying
+            // an exam among homework is how it gets missed.
+            // Named `sittings` rather than `assessments`: the latter would shadow
+            // the [ObservableProperty] backing field of the same name, which
+            // compiles but reads as a bug every time you come back to it.
+            var sittings = rows.Where(r => r.IsAssessment).ToList();
+            var handIn = rows.Where(r => !r.IsAssessment).ToList();
+
+            var late = handIn.Where(r => r.DueDate < now).ToList();
+            var soon = handIn.Where(r => r.DueDate >= now).ToList();
 
             OverdueWork = new ObservableCollection<StudentWorkRow>(late);
 
             HasOverdueWork = late.Count > 0;
             OverdueCount = late.Count.ToString();
+
+            // Soonest first, and NOT day-filtered — same reasoning as overdue.
+            // An exam three weeks out still matters on a Tuesday, and hiding it
+            // behind a day tab is exactly how it gets forgotten.
+            Assessments = new ObservableCollection<StudentWorkRow>(
+                sittings.OrderBy(r => r.DueDate));
+
+            HasAssessments = sittings.Count > 0;
+            AssessmentsCount = sittings.Count.ToString();
 
             // Cached unfiltered; ApplyDayFilter below sets UpcomingWork and its
             // count from this, honouring whichever day is selected.
@@ -869,6 +997,17 @@ public partial class DashboardViewModel : DashboardShellViewModel
     /// whatever day is selected, because hiding it behind a day tab is how it
     /// gets forgotten.
     /// </summary>
+    /// <summary>
+    /// Tests and exams, in their own section above the dated list.
+    ///
+    /// Deliberately NOT filtered by the day picker, like overdue work: an exam
+    /// three weeks out still matters on a Tuesday.
+    /// </summary>
+    [ObservableProperty] private ObservableCollection<StudentWorkRow> assessments = [];
+
+    [ObservableProperty] private bool hasAssessments;
+    [ObservableProperty] private string assessmentsCount = "0";
+
     private List<StudentWorkRow> _allUpcoming = [];
 
     /// <summary>
@@ -943,6 +1082,155 @@ public partial class DashboardViewModel : DashboardShellViewModel
                 : $"All caught up — nothing due on {scope}.";
     }
 
+    // ==================== my grades ====================
+
+    /// <summary>
+    /// Every mark this student has, across every class they're enrolled in.
+    /// Newest first — a student opening this wants the mark that just landed,
+    /// not the one from February.
+    /// </summary>
+    [ObservableProperty] private ObservableCollection<GradeRow> myGrades = [];
+
+    [ObservableProperty] private bool hasGrades;
+    [ObservableProperty] private string gradesCount = "0";
+    [ObservableProperty] private string gradesEmptyMessage = string.Empty;
+
+    /// <summary>
+    /// "68% average across 12 marks". Only counts work that actually carries a
+    /// percentage: an unmarked or zero-total item would drag the average
+    /// towards a number that means nothing.
+    /// </summary>
+    [ObservableProperty] private string gradeAverageLabel = string.Empty;
+
+    [ObservableProperty] private bool hasGradeAverage;
+
+    /// <summary>
+    /// Builds the grades widget. Costs two reads per class, so it runs
+    /// unawaited after the rest of the dashboard is on screen — same treatment
+    /// as the teacher's marking queue, and for the same reason.
+    ///
+    /// A class that fails to read is skipped rather than thrown: a partial
+    /// grades list is far better than a dashboard with an error banner over it.
+    /// </summary>
+    private async Task LoadGradesAsync(IReadOnlyList<SchoolClass> classes)
+    {
+        if (classes.Count == 0)
+        {
+            MyGrades = [];
+            _allGrades = [];
+            HasGrades = false;
+            GradesCount = "0";
+            HasGradeAverage = false;
+            GradeAverageLabel = string.Empty;
+            GradesEmptyMessage = string.Empty;
+            return;
+        }
+
+        var rows = new List<GradeRow>();
+
+        foreach (var schoolClass in classes)
+        {
+            try
+            {
+                var assignments = await _classes.GetAssignmentsAsync(schoolClass.Id);
+                var submissions = await _classes.GetMySubmissionsForClassAsync(schoolClass.Id);
+
+                var byAssignmentId = submissions.ToDictionary(
+                    x => x.AssignmentId, x => x.Submission, StringComparer.Ordinal);
+
+                foreach (var assignment in assignments.Where(a => a.Kind.IsSubmittable()))
+                {
+                    if (!byAssignmentId.TryGetValue(assignment.Id, out var submission)) continue;
+                    if (!submission.IsMarked) continue;
+
+                    // An auto-marked score is out of the multiple-choice total,
+                    // which is lower than the assignment total whenever there's
+                    // also a written answer. Using the assignment total there
+                    // would understate the mark.
+                    var outOf = submission.IsAutoMarked && submission.AutoScoreMax > 0
+                        ? submission.AutoScoreMax
+                        : assignment.Points;
+
+                    rows.Add(new GradeRow(
+                        assignment.Title, assignment.Kind, submission.Grade, outOf, assignment.DueDate)
+                    {
+                        ClassId = schoolClass.Id,
+                        ClassName = string.IsNullOrWhiteSpace(schoolClass.Name)
+                            ? schoolClass.Subject
+                            : schoolClass.Name
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                CrashLogger.Log($"Dashboard.Grades:{schoolClass.Id}", ex);
+            }
+        }
+
+        // Held unfiltered so changing the class picker refilters in memory
+        // rather than refetching two documents per class.
+        _allGrades = rows.OrderByDescending(r => r.DueDate).ToList();
+
+        GradeClasses = new ObservableCollection<string>(
+            new[] { AllClasses }.Concat(
+                _allGrades.Select(r => r.ClassName)
+                          .Where(n => !string.IsNullOrWhiteSpace(n))
+                          .Distinct(StringComparer.CurrentCultureIgnoreCase)
+                          .OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase)));
+
+        // Reset only if the previous selection no longer exists — a reload
+        // shouldn't throw away the subject the student was looking at.
+        if (!GradeClasses.Contains(SelectedGradeClass))
+            SelectedGradeClass = AllClasses;
+
+        ApplyGradeFilter();
+    }
+
+    /// <summary>The "everything" option in the class picker.</summary>
+    public const string AllClasses = "All classes";
+
+    private List<GradeRow> _allGrades = [];
+
+    /// <summary>Subjects that actually have a mark, plus "All classes".</summary>
+    [ObservableProperty] private ObservableCollection<string> gradeClasses = [AllClasses];
+
+    [ObservableProperty] private string selectedGradeClass = AllClasses;
+
+    partial void OnSelectedGradeClassChanged(string value) => ApplyGradeFilter();
+
+    /// <summary>
+    /// Narrows the list to one subject.
+    ///
+    /// The average follows the filter deliberately: a student looking at
+    /// Mathematics wants their Mathematics average, and showing the whole-school
+    /// figure under a filtered list would be quietly wrong.
+    /// </summary>
+    private void ApplyGradeFilter()
+    {
+        var shown = SelectedGradeClass == AllClasses
+            ? _allGrades
+            : _allGrades.Where(g =>
+                string.Equals(g.ClassName, SelectedGradeClass, StringComparison.CurrentCultureIgnoreCase))
+              .ToList();
+
+        MyGrades = new ObservableCollection<GradeRow>(shown);
+        HasGrades = shown.Count > 0;
+        GradesCount = shown.Count.ToString();
+
+        var scored = shown.Where(r => r.Percentage is not null).ToList();
+        HasGradeAverage = scored.Count > 0;
+        GradeAverageLabel = HasGradeAverage
+            ? $"{scored.Average(r => r.Percentage!.Value):0}% average across " +
+              (scored.Count == 1 ? "1 mark" : $"{scored.Count} marks")
+            : string.Empty;
+
+        GradesEmptyMessage = HasGrades
+            ? string.Empty
+            : _allGrades.Count > 0
+                ? $"No marks for {SelectedGradeClass} yet."
+                : "Nothing marked yet. Marks appear here as your teachers return work.";
+    }
+
     /// <summary>
     /// IDs of assignments this student has already submitted, so they can be
     /// dropped from "Work to do".
@@ -990,6 +1278,9 @@ public partial class DashboardViewModel : DashboardShellViewModel
         HasTodayPeriods = false;
         OverdueCount = "0";
         UpcomingCount = "0";
+        Assessments = [];
+        HasAssessments = false;
+        AssessmentsCount = "0";
         UpcomingRangeLabel = string.Empty;
         VisiblePeriods = [];
         HasVisiblePeriods = false;
@@ -997,6 +1288,15 @@ public partial class DashboardViewModel : DashboardShellViewModel
         IsAllCaughtUp = false;
         CaughtUpMessage = string.Empty;
         _allUpcoming = [];
+        MyGrades = [];
+        _allGrades = [];
+        GradeClasses = [AllClasses];
+        SelectedGradeClass = AllClasses;
+        HasGrades = false;
+        GradesCount = "0";
+        HasGradeAverage = false;
+        GradeAverageLabel = string.Empty;
+        GradesEmptyMessage = string.Empty;
         _enrolledClasses = [];
         _classColours = new Dictionary<string, Color>(StringComparer.Ordinal);
         ClassCountLabel = string.Empty;
@@ -1043,4 +1343,18 @@ public partial class DashboardViewModel : DashboardShellViewModel
         Role.Visitor => ["News & Announcements", "Sports Fixtures & Results"],
         _ => []
     };
+
+    /// <summary>
+    /// Pull to refresh.
+    ///
+    /// The try/finally is load-bearing: LoadAsync opens with `if (IsBusy)
+    /// return`, so pulling while a load is already running would return without
+    /// ever clearing IsRefreshing, and the spinner would hang there forever.
+    /// </summary>
+    [RelayCommand]
+    private async Task RefreshAsync()
+    {
+        try { await LoadAsync(); }
+        finally { IsRefreshing = false; }
+    }
 }

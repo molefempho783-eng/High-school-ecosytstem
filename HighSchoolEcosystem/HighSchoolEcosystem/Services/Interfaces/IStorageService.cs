@@ -38,6 +38,48 @@ public interface IStorageService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Uploads a picture for a sports post or article. The object path is
+    /// sports/{itemId}/{fileName}, which is what storage.rules gates on —
+    /// don't change it without changing the rules.
+    ///
+    /// The item ID is in the path so deleting the post can clean up its
+    /// pictures, and so the rule can be written without a wildcard that would
+    /// let one journalist overwrite another's images.
+    /// </summary>
+    Task<UploadResult> UploadSportsImageAsync(
+        string itemId, string fileName, Stream content, string contentType,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Uploads the picture for a Newspaper article. The object path is
+    /// newspaper/{articleId}/{fileName}, which is what storage.rules gates on —
+    /// don't change it without changing the rules.
+    /// </summary>
+    Task<UploadResult> UploadArticleImageAsync(
+        string articleId, string fileName, Stream content, string contentType,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Uploads a textbook PDF for AI import. The object path is
+    /// classes/{classId}/textbooks/{fileName}, which is what storage.rules
+    /// gates on (teacher only, PDF only, 50 MB) — don't change one without the
+    /// other.
+    /// </summary>
+    Task<UploadResult> UploadTextbookAsync(
+        string classId, string fileName, Stream content,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Uploads a picture or file sent in a class group chat. The object path is
+    /// classes/{classId}/chat/{senderId}/{unique file name}, which is what
+    /// storage.rules gates on — don't change it without changing the rules.
+    /// The name is made unique so two people sending "worksheet.pdf" don't clash.
+    /// </summary>
+    Task<UploadResult> UploadChatAttachmentAsync(
+        string classId, string senderId, string fileName, Stream content, string contentType,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes an object. Swallows a 404: the file already being gone is the
     /// outcome the caller wanted, and throwing would block deleting the
     /// material document and orphan it instead.

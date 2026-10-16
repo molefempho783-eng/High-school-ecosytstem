@@ -132,6 +132,41 @@ public sealed class FirebaseStorageService : IStorageService
             $"classes/{classId}/submissions/{assignmentId}/{studentId}/{SafeFileName(fileName)}",
             content, contentType, cancellationToken);
 
+    public Task<UploadResult> UploadSportsImageAsync(
+        string itemId, string fileName, Stream content, string contentType,
+        CancellationToken cancellationToken = default)
+        // Same mechanics again; the path shape lives next to the rule it must
+        // match, like the other two.
+        => UploadToPathAsync(
+            $"sports/{itemId}/{SafeFileName(fileName)}",
+            content, contentType, cancellationToken);
+
+    public Task<UploadResult> UploadArticleImageAsync(
+        string articleId, string fileName, Stream content, string contentType,
+        CancellationToken cancellationToken = default)
+        // Path shape lives next to the rule it must match, like the others.
+        => UploadToPathAsync(
+            $"newspaper/{articleId}/{SafeFileName(fileName)}",
+            content, contentType, cancellationToken);
+
+    public Task<UploadResult> UploadTextbookAsync(
+        string classId, string fileName, Stream content,
+        CancellationToken cancellationToken = default)
+        // Always application/pdf: the rule accepts nothing else, and Gemini only
+        // reads PDFs. Some pickers report no content type at all.
+        => UploadToPathAsync(
+            $"classes/{classId}/textbooks/{SafeFileName(fileName)}",
+            content, "application/pdf", cancellationToken);
+
+    public Task<UploadResult> UploadChatAttachmentAsync(
+        string classId, string senderId, string fileName, Stream content, string contentType,
+        CancellationToken cancellationToken = default)
+        // A short random prefix keeps names unique without losing the original
+        // name, which the chat shows on the file card.
+        => UploadToPathAsync(
+            $"classes/{classId}/chat/{senderId}/{Guid.NewGuid().ToString("n")[..8]}-{SafeFileName(fileName)}",
+            content, contentType, cancellationToken);
+
     public async Task DeleteAsync(string storagePath, CancellationToken cancellationToken = default)
     {
         if (!IsConfigured || string.IsNullOrWhiteSpace(storagePath)) return;

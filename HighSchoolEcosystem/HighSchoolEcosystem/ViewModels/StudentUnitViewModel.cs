@@ -30,6 +30,18 @@ public sealed record TocRow(
     /// <summary>True for a completed leaf, which gets a tick.</summary>
     public bool IsCompleted { get; init; }
 
+    /// <summary>
+    /// The tick itself. A property rather than a converter in the view, so the
+    /// compiled binding can resolve it — MAUIG2045 caught this missing, and the
+    /// binding was silently falling back to runtime reflection on every row of
+    /// the contents tree.
+    ///
+    /// Duplicated from UnitCardRow deliberately: the two are different row types
+    /// showing the same idea, and a shared base for one string would cost more
+    /// than it saves. If you change the glyph, change both.
+    /// </summary>
+    public string CompletionGlyph => IsCompleted ? "\u2713" : string.Empty;
+
     /// <summary>Indent in device units. 14 per level keeps three levels legible on a phone.</summary>
     public double Indent => Depth * 14;
 

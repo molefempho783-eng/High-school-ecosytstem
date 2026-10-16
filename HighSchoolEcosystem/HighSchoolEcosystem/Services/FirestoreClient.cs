@@ -101,6 +101,204 @@ public sealed class FirestoreClient : IFirestoreClient
         return results;
     }
 
+    public async Task<IReadOnlyList<FirestoreDocument<T>>> QueryByTimeAsync<T>(
+        string collectionPath, string timeField, bool newestFirst, int limit,
+        DateTimeOffset? after = null, CancellationToken cancellationToken = default) where T : class, new()
+    {
+        // runQuery is posted to the collection's PARENT, naming the collection
+        // in the body: "classes/abc/messages" -> parent "classes/abc", id "messages".
+        var path = collectionPath.Trim('/');
+        var slash = path.LastIndexOf('/');
+        var parent = slash < 0 ? string.Empty : path[..slash];
+        var collectionId = slash < 0 ? path : path[(slash + 1)..];
+
+        var structuredQuery = new JsonObject
+        {
+            ["from"] = new JsonArray(new JsonObject { ["collectionId"] = collectionId }),
+            ["orderBy"] = new JsonArray(new JsonObject
+            {
+                ["field"] = new JsonObject { ["fieldPath"] = timeField },
+                ["direction"] = newestFirst ? "DESCENDING" : "ASCENDING"
+            }),
+            ["limit"] = limit
+        };
+
+        if (after is { } since)
+        {
+            // Reuse the converter so the timestamp is encoded exactly as writes are.
+            var value = FirestoreValueConverter.ToFields(
+                new Dictionary<string, object?> { ["v"] = since })["v"]!.DeepClone();
+
+            structuredQuery["where"] = new JsonObject
+            {
+                ["fieldFilter"] = new JsonObject
+                {
+                    ["field"] = new JsonObject { ["fieldPath"] = timeField },
+                    ["op"] = "GREATER_THAN",
+                    ["value"] = value
+                }
+            };
+        }
+
+        var body = new JsonObject { ["structuredQuery"] = structuredQuery };
+        var uri = _endpoints.FirestoreDocumentsBaseUrl.TrimEnd('/')
+                + (parent.Length == 0 ? string.Empty : "/" + parent)
+                + ":runQuery";
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, uri)
+        {
+            Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json")
+        };
+        await ApplyAuthAsync(request, cancellationToken);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var results = new List<FirestoreDocument<T>>();
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        // The response is an array of { document?, readTime }. An entry with no
+        // document is how Firestore says "no results", so it's skipped.
+        if (JsonNode.Parse(json) is JsonArray rows)
+        {
+            foreach (var row in rows)
+            {
+                if (row?["document"] is not JsonObject document) continue;
+                if (document["fields"] is not JsonObject fields) continue;
+
+                var name = document["name"]?.GetValue<string>() ?? string.Empty;
+                var id = name[(name.LastIndexOf('/') + 1)..];
+                results.Add(new FirestoreDocument<T>(id, FirestoreValueConverter.FromFields<T>(fields)));
+            }
+        }
+
+        return results;
+    }
+
+    public async Task<int> CountByTimeAsync(
+        string collectionPath, string timeField, DateTimeOffset? after,
+        CancellationToken cancellationToken = default)
+    {
+        var (parent, collectionId) = SplitCollectionPath(collectionPath);
+
+        var structuredQuery = new JsonObject
+        {
+            ["from"] = new JsonArray(new JsonObject { ["collectionId"] = collectionId })
+        };
+        if (after is { } since)
+        {
+            structuredQuery["where"] = new JsonObject
+            {
+                ["fieldFilter"] = new JsonObject
+                {
+                    ["field"] = new JsonObject { ["fieldPath"] = timeField },
+                    ["op"] = "GREATER_THAN",
+                    ["value"] = FirestoreValueConverter.ToFields(
+                        new Dictionary<string, object?> { ["v"] = since })["v"]!.DeepClone()
+                }
+            };
+        }
+
+        var body = new JsonObject
+        {
+            ["structuredAggregationQuery"] = new JsonObject
+            {
+                ["structuredQuery"] = structuredQuery,
+                ["aggregations"] = new JsonArray(new JsonObject
+                {
+                    ["alias"] = "n",
+                    ["count"] = new JsonObject()
+                })
+            }
+        };
+
+        var uri = _endpoints.FirestoreDocumentsBaseUrl.TrimEnd('/')
+                + (parent.Length == 0 ? string.Empty : "/" + parent)
+                + ":runAggregationQuery";
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, uri)
+        {
+            Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json")
+        };
+        await ApplyAuthAsync(request, cancellationToken);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        // [ { "result": { "aggregateFields": { "n": { "integerValue": "5" } } } } ]
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (JsonNode.Parse(json) is JsonArray rows)
+        {
+            foreach (var row in rows)
+            {
+                var value = row?["result"]?["aggregateFields"]?["n"]?["integerValue"]?.GetValue<string>();
+                if (int.TryParse(value, out var count)) return count;
+            }
+        }
+        return 0;
+    }
+
+    public async Task<IReadOnlyList<FirestoreDocument<T>>> QueryWhereAsync<T>(
+        string collectionPath, string field, string op, object value,
+        CancellationToken cancellationToken = default) where T : class, new()
+    {
+        var (parent, collectionId) = SplitCollectionPath(collectionPath);
+
+        var structuredQuery = new JsonObject
+        {
+            ["from"] = new JsonArray(new JsonObject { ["collectionId"] = collectionId }),
+            ["where"] = new JsonObject
+            {
+                ["fieldFilter"] = new JsonObject
+                {
+                    ["field"] = new JsonObject { ["fieldPath"] = field },
+                    ["op"] = op,
+                    // The converter encodes lists as arrayValue, which is what
+                    // ARRAY_CONTAINS_ANY / IN expect.
+                    ["value"] = FirestoreValueConverter.ToFields(
+                        new Dictionary<string, object?> { ["v"] = value })["v"]!.DeepClone()
+                }
+            }
+        };
+
+        var body = new JsonObject { ["structuredQuery"] = structuredQuery };
+        var uri = _endpoints.FirestoreDocumentsBaseUrl.TrimEnd('/')
+                + (parent.Length == 0 ? string.Empty : "/" + parent)
+                + ":runQuery";
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, uri)
+        {
+            Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json")
+        };
+        await ApplyAuthAsync(request, cancellationToken);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var results = new List<FirestoreDocument<T>>();
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (JsonNode.Parse(json) is JsonArray rows)
+        {
+            foreach (var row in rows)
+            {
+                if (row?["document"] is not JsonObject document) continue;
+                if (document["fields"] is not JsonObject fields) continue;
+                var name = document["name"]?.GetValue<string>() ?? string.Empty;
+                results.Add(new FirestoreDocument<T>(
+                    name[(name.LastIndexOf('/') + 1)..], FirestoreValueConverter.FromFields<T>(fields)));
+            }
+        }
+        return results;
+    }
+
+    /// <summary>"classes/abc/messages" -> ("classes/abc", "messages").</summary>
+    private static (string Parent, string CollectionId) SplitCollectionPath(string collectionPath)
+    {
+        var path = collectionPath.Trim('/');
+        var slash = path.LastIndexOf('/');
+        return slash < 0 ? (string.Empty, path) : (path[..slash], path[(slash + 1)..]);
+    }
+
     public async Task PatchFieldsAsync(string documentPath, IReadOnlyDictionary<string, object?> fields, CancellationToken cancellationToken = default)
     {
         if (fields.Count == 0) return;

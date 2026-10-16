@@ -127,7 +127,17 @@ public sealed record MarkingQueueItem(
 
     public string Waiting => Count == 1 ? "1 to mark" : $"{Count} to mark";
 
-    public string DueLabel => $"was due {DueDate.ToLocalTime():ddd d MMM}";
+    /// <summary>
+    /// Tense matters here. The queue now includes work handed in early, so a
+    /// deadline can be in the future — "was due 20 Sept" on something not yet
+    /// due reads as a mistake and makes a teacher doubt the whole widget.
+    /// </summary>
+    public string DueLabel => DueDate <= DateTimeOffset.Now
+        ? $"was due {DueDate.ToLocalTime():ddd d MMM}"
+        : $"due {DueDate.ToLocalTime():ddd d MMM}";
+
+    /// <summary>True when this is early hand-in rather than a backlog.</summary>
+    public bool IsEarly => DueDate > DateTimeOffset.Now;
 
     /// <summary>Spelled out, because a bare number tells a screen reader nothing.</summary>
     public string Description =>

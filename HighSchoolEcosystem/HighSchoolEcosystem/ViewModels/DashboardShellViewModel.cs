@@ -2,6 +2,9 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using HighSchoolEcosystem.Models;
+using HighSchoolEcosystem.Services;
+using HighSchoolEcosystem.Services.Interfaces;
 
 namespace HighSchoolEcosystem.ViewModels;
 
@@ -22,6 +25,13 @@ public sealed partial class RailItem : ObservableObject
     }
 
     public string Glyph { get; }
+
+    /// <summary>
+    /// The rail draws this IMAGE rather than the glyph: images are bundled per
+    /// platform at build time, so the rail can't go blank if a font fails to
+    /// load. Derived from the glyph so no caller has to change.
+    /// </summary>
+    public string IconImage => Icons.RailImage(Glyph);
     public string Label { get; }
     public ICommand Command { get; }
 
@@ -110,6 +120,147 @@ public abstract partial class DashboardShellViewModel : ObservableObject
         foreach (var item in value) item.IsExpanded = IsRailExpanded;
     }
 
+    // ---- newspaper ----
+    //
+    // Shared here rather than copied into five dashboards: the Newspaper
+    // section is identical for every role, and it's rendered by one control
+    // (Controls/NewspaperWidget) that reads these through the inherited
+    // BindingContext. Each dashboard only calls LoadNewspaperAsync.
+
+    [ObservableProperty] private ObservableCollection<ArticleRow> newspaperArticles = [];
+    [ObservableProperty] private bool hasNewspaperArticles;
+    [ObservableProperty] private string newspaperCount = "0";
+    [ObservableProperty] private string newspaperEmptyMessage = string.Empty;
+
+    /// <summary>
+    /// Whether the section exists at all. False for visitors and guests, who
+    /// the rules don't let read the Newspaper — a section that could only ever
+    /// show an error is worse than none. The rail item follows the same test.
+    /// </summary>
+    [ObservableProperty] private bool showsNewspaper;
+
+    /// <summary>Journalist or Admin — shows "Write an article".</summary>
+    [ObservableProperty] private bool canWriteArticles;
+
+    private IContentService? _newspaperContent;
+
+    /// <summary>
+    /// How many articles a dashboard shows before "Read the Newspaper".
+    /// </summary>
+    private const int NewspaperPreviewCount = 4;
+
+    /// <summary>
+    /// Every role except Visitor reads the Newspaper — mirrors
+    /// `isSchoolCommunity() || isJournalist()` in firestore.rules. Used to
+    /// decide the rail item before the content service has been primed.
+    /// </summary>
+    protected static bool ReadsNewspaper(UserProfile? profile)
+        => profile is not null && profile.AllRoles().Any(r => r != Role.Visitor);
+
+    /// <summary>
+    /// Loads the latest articles. Call AFTER IContentService.PrimeAsync, which
+    /// every dashboard already does for its announcements. Never throws: a
+    /// broken Newspaper mustn't make the rest of the dashboard look broken.
+    /// </summary>
+    protected async Task LoadNewspaperAsync(IContentService content)
+    {
+        _newspaperContent = content;
+        ShowsNewspaper = content.CanReadArticles;
+        CanWriteArticles = content.CanWriteArticles;
+
+        if (!ShowsNewspaper)
+        {
+            NewspaperArticles = [];
+            HasNewspaperArticles = false;
+            NewspaperCount = "0";
+            NewspaperEmptyMessage = string.Empty;
+            return;
+        }
+
+        try
+        {
+            var all = await content.GetArticlesAsync();
+            var shown = all.Take(NewspaperPreviewCount)
+                .Select(a => new ArticleRow(a, content.CanEditArticle(a), content.CanDeleteArticle(a)))
+                .ToList();
+
+            NewspaperArticles = new ObservableCollection<ArticleRow>(shown);
+            HasNewspaperArticles = shown.Count > 0;
+            NewspaperCount = all.Count.ToString();
+            NewspaperEmptyMessage = HasNewspaperArticles
+                ? string.Empty
+                : "No articles yet. Check back soon.";
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Dashboard.Newspaper", ex);
+            NewspaperArticles = [];
+            HasNewspaperArticles = false;
+            NewspaperEmptyMessage = "We couldn't load the Newspaper right now.";
+        }
+    }
+
+    /// <summary>
+    /// Removes an article from the dashboard's detail sheet. The caller has
+    /// already confirmed. Returns false if it was refused or failed.
+    /// </summary>
+    public async Task<bool> DeleteArticleAsync(ArticleRow row)
+    {
+        if (_newspaperContent is null || !row.CanDelete) return false;
+
+        try
+        {
+            await _newspaperContent.DeleteArticleAsync(row.Id);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Dashboard.DeleteArticle", ex);
+            return false;
+        }
+
+        await LoadNewspaperAsync(_newspaperContent);
+        return true;
+    }
+
+    // ---- teacher-parent messages ----
+    //
+    // Shared for the same reason as the Newspaper: teacher and parent
+    // dashboards render one control (Controls/MessagesWidget) from these.
+
+    [ObservableProperty] private ObservableCollection<ConversationRow> recentConversations = [];
+    [ObservableProperty] private bool hasRecentConversations;
+    [ObservableProperty] private bool showsMessages;
+    [ObservableProperty] private string messagesSummary = string.Empty;
+
+    /// <summary>Threads with something new from the other person.</summary>
+    [ObservableProperty] private ChatUnread unreadConversations = new();
+
+    /// <summary>Never throws: messages failing mustn't make the dashboard look broken.</summary>
+    protected async Task LoadMessagesAsync(IConversationService conversations)
+    {
+        ShowsMessages = true;
+        try
+        {
+            var me = conversations.CurrentUserId;
+            var all = await conversations.GetMyConversationsAsync();
+            var rows = all.Select(c => new ConversationRow(c, me, conversations.IsUnread(c))).ToList();
+
+            RecentConversations = new ObservableCollection<ConversationRow>(rows.Take(3));
+            HasRecentConversations = rows.Count > 0;
+            UnreadConversations.Count = rows.Count(r => r.IsUnread);
+            MessagesSummary = rows.Count == 0
+                ? "No conversations yet. Open Messages to start one."
+                : string.Empty;
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Dashboard.Messages", ex);
+            RecentConversations = [];
+            HasRecentConversations = false;
+            MessagesSummary = "We couldn't load your messages right now.";
+        }
+    }
+
     /// <summary>
     /// Up to two letters for the avatar. Takes the first and last word so
     /// "Mpho Molefe" gives MM and a middle name doesn't displace the surname.
@@ -129,8 +280,12 @@ public abstract partial class DashboardShellViewModel : ObservableObject
     /// Banner colours, read from Colors.xaml so recolouring a client school
     /// doesn't leave cards on the old palette. Falls back to a hardcoded set
     /// when there's no Application — which is the case in unit tests.
+    ///
+    /// Public rather than protected: TeacherClassesViewModel isn't a dashboard
+    /// but shows the same class tiles, and a second copy of the palette is how
+    /// the same class ends up two different colours on two screens.
     /// </summary>
-    protected static IReadOnlyList<Color> BannerPalette
+    public static IReadOnlyList<Color> BannerPalette
     {
         get
         {

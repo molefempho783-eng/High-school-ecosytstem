@@ -79,13 +79,13 @@ public partial class StudentUnitPage : ContentPage
         {
             // A teacher can paste anything into the link field, so a malformed
             // URL is a data problem rather than a bug — say so plainly.
-            await DisplayAlert("Can't open this",
+            await DisplayAlertAsync("Can't open this",
                 "That link doesn't look valid. Ask your teacher to check it.", "OK");
         }
         catch (Exception ex)
         {
             CrashLogger.Log("StudentUnit.OpenMaterial", ex);
-            await DisplayAlert("Can't open this",
+            await DisplayAlertAsync("Can't open this",
                 "We couldn't open that material. Check your connection and try again.", "OK");
         }
     }

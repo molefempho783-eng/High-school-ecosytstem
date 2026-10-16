@@ -148,6 +148,33 @@ service cloud.firestore {
         classDoc(classId).StudentIds.hasAny(userDoc().data.LinkedStudentIds);
     }
 
+    // ---- teams -----------------------------------------------------------
+    //
+    // A team is shaped like a class on purpose: an owner, a roster, and its own
+    // notice board. Same helpers, same reasoning — see isClassTeacher above.
+
+    function teamDoc(teamId) {
+      return get(/databases/$(database)/documents/teams/$(teamId));
+    }
+
+    // For subcollection rules and updates, never `create` — a get() on a
+    // document that doesn't exist yet errors out and denies.
+    function isTeamCoach(teamId) {
+      return isCoach() && teamDoc(teamId).data.CoachId == request.auth.uid;
+    }
+
+    function isTeamMember(teamId) {
+      return isStudent() && request.auth.uid in teamDoc(teamId).data.MemberIds;
+    }
+
+    // True when this parent is linked to at least one member of the squad. A
+    // practice time is exactly the sort of thing a parent has to know — they're
+    // usually the lift.
+    function isParentOfTeamMember(teamId) {
+      return isParent() &&
+        teamDoc(teamId).data.MemberIds.hasAny(userDoc().data.LinkedStudentIds);
+    }
+
     // ---- school-wide config (branding fallback; app mainly reads this from
     // appsettings.json, but a Firestore copy lets admins tweak it without a
     // new app build) -----------------------------------------------------
@@ -200,6 +227,18 @@ service cloud.firestore {
       );
 
       allow delete: if isAdmin();
+
+      // Push notification targets: one document per installed device, holding
+      // its FCM token. Only the owner touches them — the app writes on sign-in
+      // and deletes on sign-out. Cloud Functions read them with admin rights to
+      // send; no other user ever needs to see someone's tokens.
+      match /devices/{deviceId} {
+        allow read, delete: if isSelf(uid);
+        allow create, update: if isSelf(uid)
+          && request.resource.data.keys().hasOnly(['Token', 'Platform', 'UpdatedAt'])
+          && request.resource.data.Token is string
+          && request.resource.data.Token.size() < 4096;
+      }
     }
 
     // A rostered user's profile must match their invite exactly — and if that
@@ -369,6 +408,56 @@ service cloud.firestore {
         allow delete: if isAdmin() || isClassTeacher(classId);
       }
 
+      // ---- class group chat ----------------------------------------------
+
+      // One group chat per class: its enrolled students and its teacher, and
+      // nobody else. There is deliberately NO one-to-one messaging anywhere —
+      // every message is visible to the whole class and its teacher.
+      //
+      // Parents are not members: this is the students' class space. Admins can
+      // read and delete (moderation) but don't post.
+      match /messages/{messageId} {
+        allow read: if isAdmin() || isClassTeacher(classId) || isClassStudent(classId);
+
+        // AuthorRole is checked against what the writer really is in THIS
+        // class, so a student can't post with a "Teacher" label. SentAt must
+        // be close to the server's clock: the chat is ordered by it, and a
+        // far-future timestamp would pin a message to the bottom for ever.
+        //
+        // A message is text, an attachment (picture or file), or both. The
+        // attachment's path must be in the SENDER's own chat folder for THIS
+        // class (storage.rules only lets you upload there), so nobody can
+        // attach someone else's file.
+        allow create: if request.resource.data.AuthorId == request.auth.uid
+          && request.resource.data.keys().hasOnly(['AuthorId', 'AuthorName', 'AuthorRole', 'Text', 'SentAt',
+               'AttachmentUrl', 'AttachmentPath', 'AttachmentName', 'AttachmentKind', 'AttachmentSize'])
+          && request.resource.data.Text is string
+          && request.resource.data.Text.size() <= 1000
+          && request.resource.data.get('AttachmentUrl', '') is string
+          && request.resource.data.get('AttachmentPath', '') is string
+          && request.resource.data.get('AttachmentKind', '') in ['', 'Image', 'File']
+          && (request.resource.data.Text.size() > 0 || request.resource.data.get('AttachmentUrl', '') != '')
+          && (request.resource.data.get('AttachmentPath', '') == ''
+              || request.resource.data.AttachmentPath.matches(
+                   'classes/' + classId + '/chat/' + request.auth.uid + '/[^/]+'))
+          && request.resource.data.SentAt is timestamp
+          && request.resource.data.SentAt > request.time - duration.value(10, 'm')
+          && request.resource.data.SentAt < request.time + duration.value(10, 'm')
+          && (
+            (isClassTeacher(classId) && request.resource.data.AuthorRole == 'Teacher')
+            || (isClassStudent(classId) && request.resource.data.AuthorRole == 'Student')
+          );
+
+        // No editing: a message that can be changed after people replied to it
+        // makes the conversation unreliable. Delete and re-send instead.
+        allow update: if false;
+
+        // Your own message, or any message if you're the class's teacher or an
+        // admin — that's the moderation.
+        allow delete: if resource.data.AuthorId == request.auth.uid
+          || isClassTeacher(classId) || isAdmin();
+      }
+
       // ---- per-student progress ----------------------------------------
 
       // Which materials a student has ticked off. The document ID is their UID,
@@ -405,6 +494,119 @@ service cloud.firestore {
 
         allow delete: if isAdmin() || isClassTeacher(classId);
       }
+
+      // ---- AI textbook imports -----------------------------------------
+      //
+      // A teacher uploads a textbook PDF; the generateTextbookOutline and
+      // generateTextbookChapter Cloud Functions (Gemini on Vertex AI) write
+      // DRAFT units, notes and quiz questions here. Nothing here is visible to
+      // students: drafts live in their own subtree rather than as flagged
+      // documents in /units or /materials, because rules filter documents, not
+      // queries — one hidden draft in /units would make every student's list
+      // of units fail outright. Publishing copies a chapter into the real
+      // collections through the ordinary teacher paths above.
+      //
+      // The functions use the Admin SDK and bypass these rules. Status changes
+      // the teacher may make are deliberately narrow: they can retry a failed
+      // chapter (Pending), mark one Published, and edit its words.
+      match /textbookJobs/{jobId} {
+        allow read, delete: if isAdmin() || isClassTeacher(classId);
+
+        // Only a fresh, queued job, requested by the writer. The function picks
+        // it up on create; anything else would never be processed.
+        allow create: if (isAdmin() || isClassTeacher(classId))
+          && request.resource.data.RequestedBy == request.auth.uid
+          && request.resource.data.Status == 'Queued';
+
+        // The teacher records where the original PDF was attached; progress
+        // fields belong to the function.
+        allow update: if (isAdmin() || isClassTeacher(classId))
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['TextbookMaterialId', 'UpdatedAt']);
+
+        match /chapters/{chapterId} {
+          allow read, delete: if isAdmin() || isClassTeacher(classId);
+
+          // Created only by the function.
+          allow create: if false;
+
+          allow update: if (isAdmin() || isClassTeacher(classId))
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['Title', 'Notes', 'Status', 'Error', 'UpdatedAt',
+                           'PublishedUnitId', 'PublishedMaterialId', 'PublishedAssignmentId'])
+            && request.resource.data.Status in ['Pending', 'Ready', 'Published'];
+
+          // Draft questions, answer included. Teacher-only, like answerKeys.
+          match /questions/{questionId} {
+            allow read, delete: if isAdmin() || isClassTeacher(classId);
+            allow create, update: if false;
+          }
+        }
+      }
+    }
+
+    // ---- teacher-parent conversations -------------------------------------
+
+    // One thread per teacher, parent AND child:
+    //   /conversations/{teacherId}_{parentId}_{studentId}
+    // The ID is fixed by its three parts so the same three people can never
+    // end up with two parallel threads.
+    //
+    // A conversation can only be OPENED for a real relationship, checked here
+    // rather than trusted from the app: the child must be in a class that
+    // teacher teaches, and linked to that parent. That's what "the parent is
+    // linked to the teacher" means — nobody records it; it follows from the
+    // class roster and the parent's LinkedStudentIds.
+    //
+    // Admins can read every thread. A private channel between a teacher and a
+    // family is exactly where a school needs a record it can look at if a
+    // dispute comes up — the app says so to both sides.
+    match /conversations/{conversationId} {
+      function convo() {
+        return get(/databases/$(database)/documents/conversations/$(conversationId)).data;
+      }
+
+      allow read: if isSignedIn() && (request.auth.uid in resource.data.ParticipantIds || isAdmin());
+
+      allow create: if isSignedIn()
+        && conversationId == request.resource.data.TeacherId + '_' + request.resource.data.ParentId
+                             + '_' + request.resource.data.StudentId
+        && request.resource.data.ParticipantIds == [request.resource.data.TeacherId, request.resource.data.ParentId]
+        && (request.auth.uid == request.resource.data.TeacherId || request.auth.uid == request.resource.data.ParentId)
+        && classDoc(request.resource.data.ClassId).TeacherId == request.resource.data.TeacherId
+        && request.resource.data.StudentId in classDoc(request.resource.data.ClassId).StudentIds
+        && request.resource.data.StudentId in
+             get(/databases/$(database)/documents/users/$(request.resource.data.ParentId)).data.get('LinkedStudentIds', []);
+
+      // Participants only move the "last message" summary along, as themselves.
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.ParticipantIds
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['LastMessageAt', 'LastMessagePreview', 'LastSenderId'])
+        && request.resource.data.LastSenderId == request.auth.uid;
+
+      // It's a record: only an admin removes a thread.
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (request.auth.uid in convo().ParticipantIds || isAdmin());
+
+        allow create: if isSignedIn()
+          && request.resource.data.AuthorId == request.auth.uid
+          && request.auth.uid in convo().ParticipantIds
+          && request.resource.data.keys().hasOnly(['AuthorId', 'AuthorName', 'Text', 'SentAt'])
+          && request.resource.data.Text is string
+          && request.resource.data.Text.size() > 0
+          && request.resource.data.Text.size() <= 2000
+          && request.resource.data.SentAt is timestamp
+          && request.resource.data.SentAt > request.time - duration.value(10, 'm')
+          && request.resource.data.SentAt < request.time + duration.value(10, 'm');
+
+        // No editing or deleting by either side: both are relying on this as
+        // the record of what was said. Admins can remove (e.g. abuse).
+        allow update: if false;
+        allow delete: if isAdmin();
+      }
     }
 
     // ---- timetable -------------------------------------------------------
@@ -418,38 +620,40 @@ service cloud.firestore {
         (isTeacher() && isClassTeacher(resource.data.ClassId));
     }
 
-    // School newspaper. Journalists are usually students, so this is the one
-    // place a student can publish — and only here. Published articles are
-    // public so visitors and guests can read them; drafts are not.
-    // NOTE: rules filter documents, they don't filter queries. An anonymous
-    // LIST over /newspaper is denied wholesale unless the client constrains it
-    // with `where IsPublished == true`, because the rule can't be satisfied for
-    // the unpublished drafts the query would otherwise return.
+    // School newspaper ("Newspaper" in the app). Journalists are usually
+    // students, so this is the one place a student can publish to the whole
+    // school — and only here.
+    //
+    // Articles go live the moment they're written: there is no draft or
+    // approval step. That was a deliberate product choice, so the safety net
+    // is AFTER publication instead — any teacher or admin can take an article
+    // down (delete), but only its author or an admin can change its words.
+    // A teacher rewriting a student's article under the student's byline would
+    // be worse than removing it.
+    //
+    // Read by the school community only, not visitors or guests: these are
+    // students writing under their own names, which is a different audience
+    // decision from a fixture list. Journalist is added explicitly because an
+    // account whose PRIMARY role is Journalist isn't in isSchoolCommunity(),
+    // and a journalist who can't read their own paper would be absurd.
     match /newspaper/{articleId} {
-      allow read: if resource.data.get('IsPublished', false) == true || isSchoolCommunity();
+      allow read: if isSchoolCommunity() || isJournalist();
 
-      // A journalist may only create articles authored by themselves, and only
-      // as an unpublished draft — publishing is an editorial act. Admins and
-      // teachers can create and publish directly, which is what makes editorial
-      // oversight of a student newspaper work.
-      allow create: if isAdmin() || isTeacher() || (
-        isJournalist()
-        && request.resource.data.AuthorId == request.auth.uid
-        && request.resource.data.get('IsPublished', false) == false
+      // Byline pinned to the writer, same as everywhere else.
+      allow create: if (isJournalist() || isAdmin())
+        && request.resource.data.AuthorId == request.auth.uid;
+
+      // Authorship is immutable for everyone: without this an author could
+      // hand an article to someone else, or claim another's work.
+      allow update: if request.resource.data.AuthorId == resource.data.AuthorId && (
+        isAdmin()
+        || (isJournalist() && resource.data.AuthorId == request.auth.uid)
       );
 
-      allow update: if isAdmin() || isTeacher() || (
-        isJournalist()
-        && resource.data.AuthorId == request.auth.uid
-        // Authorship is immutable for journalists: without this a journalist
-        // could reassign an article to someone else, or claim another's work.
-        && request.resource.data.AuthorId == resource.data.AuthorId
-        // And they cannot publish their own work — a staff member must.
-        && request.resource.data.get('IsPublished', false) == resource.data.get('IsPublished', false)
-      );
-
-      allow delete: if isAdmin() || isTeacher() ||
-        (isJournalist() && resource.data.AuthorId == request.auth.uid);
+      // Take-down. Teachers are included so a problem article can be removed
+      // straight away without waiting for an admin.
+      allow delete: if isAdmin() || isTeacher()
+        || (isJournalist() && resource.data.AuthorId == request.auth.uid);
     }
 
     // ---- announcements --------------------------------------------------
@@ -490,6 +694,50 @@ service cloud.firestore {
     // journalist branch is narrower than the other two — they may only touch
     // their own posts, which is what stops a student rewriting a coach's
     // result or deleting a fixture they dislike.
+    // ---- teams and squads -------------------------------------------------
+
+    match /teams/{teamId} {
+
+      // Readable by the whole school community, same as a class document and
+      // for the same reason: a squad list is directory-level information within
+      // a school, and a LIST query fails entirely if any one document denies.
+      // What's private is the notices below, not the fact a team exists.
+      allow read: if isSchoolCommunity();
+
+      // Create is separate from update: isTeamCoach() get()s a document that
+      // doesn't exist yet. A coach may only create a team owned by themselves,
+      // which is what stops one coach creating a team in another's name.
+      allow create: if isAdmin() ||
+        (isCoach() && request.resource.data.CoachId == request.auth.uid);
+
+      // Ownership is immutable. Without this a coach could hand their team to
+      // someone else, or take one, by editing a single field.
+      allow update: if (isAdmin() || isTeamCoach(teamId))
+        && request.resource.data.CoachId == resource.data.CoachId;
+
+      allow delete: if isAdmin() || isTeamCoach(teamId);
+
+      // ---- team notices ---------------------------------------------------
+      //
+      // Practice times, kit, meeting points, game-day details. Identical shape
+      // to class announcements: the PATH carries the team, so membership gates
+      // the read and ownership gates the write, with no client-side filtering
+      // and no way for a list query to hand one squad's notices to another.
+      match /notices/{noticeId} {
+        allow read: if isAdmin() || isTeamCoach(teamId) || isTeamMember(teamId) ||
+          isParentOfTeamMember(teamId);
+
+        allow create: if (isAdmin() || isTeamCoach(teamId))
+          // Byline pinned to the writer, same as everywhere else.
+          && request.resource.data.AuthorId == request.auth.uid;
+
+        allow update: if (isAdmin() || isTeamCoach(teamId))
+          && request.resource.data.AuthorId == resource.data.AuthorId;
+
+        allow delete: if isAdmin() || isTeamCoach(teamId);
+      }
+    }
+
     match /sports/{itemId} {
       // Sport was public-facing under the old rules and stays that way — a
       // fixture list is exactly what a prospective parent looks for.
